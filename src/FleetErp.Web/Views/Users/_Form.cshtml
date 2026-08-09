@@ -1,0 +1,51 @@
+@model UserFormViewModel
+@{
+    var search = ViewData["Search"] as string;
+}
+
+<form id="detail-form" asp-action="Save" asp-route-search="@search" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+
+    <div class="wb__section">
+        <h3>Cuenta</h3>
+        <div class="grid grid--form">
+            <div class="field">
+                <label asp-for="FullName"></label>
+                <input asp-for="FullName" autofocus />
+                <span asp-validation-for="FullName" class="field-error"></span>
+            </div>
+            <div class="field">
+                <label asp-for="Email"></label>
+                <input asp-for="Email" type="email" autocomplete="off" />
+                <span class="field__hint">Es con lo que entra al portal.</span>
+                <span asp-validation-for="Email" class="field-error"></span>
+            </div>
+            <div class="field">
+                <label asp-for="Role"></label>
+                <select asp-for="Role">
+                    <option value="@UserRole.Administrator" selected="@(Model.Role == UserRole.Administrator)">Administrador — configura la empresa</option>
+                    <option value="@UserRole.Dispatcher" selected="@(Model.Role == UserRole.Dispatcher)">Despachador — captura la operación</option>
+                    <option value="@UserRole.Viewer" selected="@(Model.Role == UserRole.Viewer)">Consulta — solo lectura</option>
+                </select>
+            </div>
+
+            @if (Model.IsNew)
+            {
+                <div class="field">
+                    <label asp-for="Password"></label>
+                    <input asp-for="Password" type="password" autocomplete="new-password" />
+                    <span class="field__hint">Mínimo 8 caracteres, con al menos una letra y un número.</span>
+                    <span asp-validation-for="Password" class="field-error"></span>
+                </div>
+            }
+        </div>
+
+        @if (!Model.IsNew)
+        {
+            <p class="field__hint">
+                La contraseña se restablece desde la ficha, no aquí: así queda claro que es una operación distinta.
+            </p>
+        }
+    </div>
+</form>

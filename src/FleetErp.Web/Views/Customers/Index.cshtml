@@ -1,0 +1,95 @@
+@model CustomersWorkbench
+@{
+    ViewData["Title"] = "Clientes";
+    ViewData["Subtitle"] = "A quién se le factura el flete de cada viaje";
+    var c = Model.Selected;
+}
+
+@section TopbarActions {
+    @if (Model.CanWrite)
+    {
+        <a class="btn btn--primary" asp-action="Index" asp-route-id="" asp-route-mode="new" asp-route-search="@Model.List.Search">+ Nuevo cliente</a>
+    }
+}
+
+<div class="wb">
+    <partial name="_WorkbenchList" model="Model.List" />
+
+    <section class="wb__detail">
+        @if (Model.Mode == WorkbenchMode.Empty)
+        {
+            <div class="wb__placeholder">
+                <h3>Seleccione un cliente</h3>
+                <p>Los viajes pueden capturarse sin cliente, pero registrarlo permite ver cuánto se le vende a cada cuenta.</p>
+                @if (Model.CanWrite)
+                {
+                    <a class="btn btn--primary" asp-action="Index" asp-route-id="" asp-route-mode="new">+ Nuevo cliente</a>
+                }
+            </div>
+        }
+        else if (Model.Mode == WorkbenchMode.View && c is not null)
+        {
+            <div class="wb__detail-head">
+                <div class="wb__detail-title">
+                    <h2>@c.Name</h2>
+                    <p>@c.TaxId.Or("Sin RFC registrado")</p>
+                </div>
+                @if (!c.IsActive)
+                {
+                    <span class="tag tag--void">Dado de baja</span>
+                }
+                <partial name="_WorkbenchToolbar" model="@(new WorkbenchToolbar {
+                    Mode = Model.Mode, SelectedId = c.Id, CanWrite = Model.CanWrite,
+                    DeleteLabel = c.IsActive ? "Dar de baja" : "Reactivar",
+                    DeleteConfirm = c.IsActive
+                        ? $"¿Dar de baja a {c.Name}? Dejará de aparecer al programar viajes."
+                        : $"¿Reactivar a {c.Name}?",
+                    Filters = Model.List.Filters })" />
+            </div>
+
+            <div class="wb__body">
+                <div class="wb__section">
+                    <h3>Datos</h3>
+                    <div class="wb__facts">
+                        <div class="wb__fact"><dt>Razón social</dt><dd>@c.Name</dd></div>
+                        <div class="wb__fact"><dt>RFC</dt><dd class="num">@c.TaxId.Or()</dd></div>
+                        <div class="wb__fact"><dt>Contacto</dt><dd>@c.ContactName.Or()</dd></div>
+                        <div class="wb__fact"><dt>Teléfono</dt><dd class="num">@c.Phone.Or()</dd></div>
+                        <div class="wb__fact"><dt>Correo</dt><dd>@c.Email.Or()</dd></div>
+                        <div class="wb__fact"><dt>Dirección</dt><dd>@c.Address.Or()</dd></div>
+                    </div>
+                </div>
+
+                <div class="wb__section">
+                    <h3>Operación</h3>
+                    <div class="row-actions">
+                        <a class="btn btn--small" asp-controller="Trips" asp-action="Index">Ver viajes</a>
+                        <a class="btn btn--small" asp-controller="Finance" asp-action="Index">Ver venta por cliente</a>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="wb__detail-head">
+                <div class="wb__detail-title">
+                    <h2>@(Model.Form.IsNew ? "Nuevo cliente" : $"Editar a {Model.Form.Name}")</h2>
+                    <p>Solo el nombre es obligatorio; el resto se puede completar después</p>
+                </div>
+                <partial name="_WorkbenchToolbar" model="@(new WorkbenchToolbar {
+                    Mode = Model.Mode, SelectedId = Model.Form.Id, CanWrite = Model.CanWrite,
+                    Filters = Model.List.Filters })" />
+            </div>
+
+            <div class="wb__body">
+                <partial name="_ValidationSummary" />
+                @{ ViewData["Search"] = Model.List.Search; }
+                <partial name="_Form" model="Model.Form" />
+            </div>
+        }
+    </section>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

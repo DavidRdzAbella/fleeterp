@@ -1,0 +1,276 @@
+@model CatalogWorkbench
+@{
+    ViewData["Title"] = "Catálogos";
+    ViewData["Subtitle"] = "Lo que cada empresa nombra a su manera se configura aquí, sin tocar código";
+
+    var kindLabel = Model.Kind switch
+    {
+        CatalogKind.VehicleTypes => "tipo de unidad",
+        CatalogKind.ExpenseCategories => "concepto de gasto",
+        _ => "campo a la medida"
+    };
+
+    var saveAction = Model.Kind switch
+    {
+        CatalogKind.VehicleTypes => "SaveVehicleType",
+        CatalogKind.ExpenseCategories => "SaveExpenseCategory",
+        _ => "SaveCustomField"
+    };
+
+    var formId = Model.Kind switch
+    {
+        CatalogKind.VehicleTypes => Model.VehicleTypeForm.Id,
+        CatalogKind.ExpenseCategories => Model.ExpenseCategoryForm.Id,
+        _ => Model.CustomFieldForm.Id
+    };
+}
+
+@section TopbarActions {
+    <div class="period" role="group" aria-label="Catálogo">
+        <a class="@(Model.Kind == CatalogKind.VehicleTypes ? "is-active" : null)"
+           asp-action="Index" asp-route-kind="@CatalogKind.VehicleTypes">Tipos de unidad</a>
+        <a class="@(Model.Kind == CatalogKind.ExpenseCategories ? "is-active" : null)"
+           asp-action="Index" asp-route-kind="@CatalogKind.ExpenseCategories">Conceptos de gasto</a>
+        <a class="@(Model.Kind == CatalogKind.CustomFields ? "is-active" : null)"
+           asp-action="Index" asp-route-kind="@CatalogKind.CustomFields">Campos a la medida</a>
+    </div>
+    <a class="btn btn--primary" asp-action="Index" asp-route-kind="@Model.Kind" asp-route-id="" asp-route-mode="new"
+       asp-route-search="@Model.List.Search">+ Nuevo</a>
+}
+
+<div class="wb">
+    <partial name="_WorkbenchList" model="Model.List" />
+
+    <section class="wb__detail">
+        @if (Model.Mode == WorkbenchMode.Empty)
+        {
+            <div class="wb__placeholder">
+                <h3>Seleccione un @kindLabel</h3>
+                <p>
+                    @(Model.Kind switch
+                    {
+                        CatalogKind.VehicleTypes => "Los tipos definen si una unidad es motriz o de arrastre, y con eso el sistema sabe qué puede engancharse a un viaje.",
+                        CatalogKind.ExpenseCategories => "Los conceptos son el desglose de costos que su empresa ya usa. El combustible no va aquí: se captura como carga.",
+                        _ => "Un campo a la medida aparece solo en los formularios de la entidad que elija, sin necesidad de desarrollo."
+                    })
+                </p>
+                <a class="btn btn--primary" asp-action="Index" asp-route-kind="@Model.Kind" asp-route-id="" asp-route-mode="new">+ Nuevo</a>
+            </div>
+        }
+        else if (Model.Mode == WorkbenchMode.View)
+        {
+            <div class="wb__detail-head">
+                <div class="wb__detail-title">
+                    <h2>
+                        @(Model.Kind switch
+                        {
+                            CatalogKind.VehicleTypes => Model.SelectedVehicleType!.Name,
+                            CatalogKind.ExpenseCategories => Model.SelectedExpenseCategory!.Name,
+                            _ => Model.SelectedCustomField!.Label
+                        })
+                    </h2>
+                    <p>
+                        @(Model.Kind switch
+                        {
+                            CatalogKind.VehicleTypes => $"Código {Model.SelectedVehicleType!.Code}",
+                            CatalogKind.ExpenseCategories => $"Código {Model.SelectedExpenseCategory!.Code}",
+                            _ => $"Llave {Model.SelectedCustomField!.Key}"
+                        })
+                    </p>
+                </div>
+                @{
+                    var active = Model.Kind switch
+                    {
+                        CatalogKind.VehicleTypes => Model.SelectedVehicleType!.IsActive,
+                        CatalogKind.ExpenseCategories => Model.SelectedExpenseCategory!.IsActive,
+                        _ => Model.SelectedCustomField!.IsActive
+                    };
+                }
+                <span class="tag tag--@(active ? "free" : "void")">@(active ? "Activo" : "Inactivo")</span>
+
+                <div class="wb__actions">
+                    <a class="btn btn--primary" asp-action="Index" asp-route-kind="@Model.Kind"
+                       asp-route-id="@Model.List.SelectedId" asp-route-search="@Model.List.Search" asp-route-mode="edit">Editar</a>
+                    <form asp-action="Delete" asp-route-kind="@Model.Kind" asp-route-id="@Model.List.SelectedId"
+                          asp-route-search="@Model.List.Search" method="post">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn--danger"
+                                data-confirm="@(active ? "¿Desactivar este registro? Dejará de aparecer en los formularios." : "¿Reactivar este registro?")">
+                            @(active ? "Desactivar" : "Reactivar")
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="wb__body">
+                <div class="wb__section">
+                    <h3>Definición</h3>
+                    <div class="wb__facts">
+                        @if (Model.Kind == CatalogKind.VehicleTypes)
+                        {
+                            var t = Model.SelectedVehicleType!;
+                            <div class="wb__fact"><dt>Código</dt><dd class="num">@t.Code</dd></div>
+                            <div class="wb__fact"><dt>Nombre</dt><dd>@t.Name</dd></div>
+                            <div class="wb__fact"><dt>Categoría</dt><dd>@Display.CategoryLabel(t.Category)</dd></div>
+                        }
+                        else if (Model.Kind == CatalogKind.ExpenseCategories)
+                        {
+                            var c = Model.SelectedExpenseCategory!;
+                            <div class="wb__fact"><dt>Código</dt><dd class="num">@c.Code</dd></div>
+                            <div class="wb__fact"><dt>Nombre</dt><dd>@c.Name</dd></div>
+                            <div class="wb__fact">
+                                <dt>Aplica a</dt>
+                                <dd>@(c.IsTripRelated ? "Costo directo del viaje" : "Gasto de estructura")</dd>
+                            </div>
+                        }
+                        else
+                        {
+                            var f = Model.SelectedCustomField!;
+                            <div class="wb__fact"><dt>Entidad</dt><dd>@f.Target</dd></div>
+                            <div class="wb__fact"><dt>Etiqueta</dt><dd>@f.Label</dd></div>
+                            <div class="wb__fact"><dt>Llave</dt><dd class="num">@f.Key</dd></div>
+                            <div class="wb__fact"><dt>Tipo de dato</dt><dd>@f.Type</dd></div>
+                            <div class="wb__fact"><dt>Obligatorio</dt><dd>@(f.IsRequired ? "Sí" : "No")</dd></div>
+                            <div class="wb__fact"><dt>Orden</dt><dd class="num">@f.DisplayOrder</dd></div>
+                            <div class="wb__fact">
+                                <dt>Opciones</dt>
+                                <dd>@(f.Options.Count == 0 ? Display.Missing : string.Join(" · ", f.Options))</dd>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="wb__detail-head">
+                <div class="wb__detail-title">
+                    <h2>@(formId is null ? $"Nuevo {kindLabel}" : $"Editar {kindLabel}")</h2>
+                    <p>Los cambios se ven de inmediato en los formularios de captura</p>
+                </div>
+                <partial name="_WorkbenchToolbar" model="@(new WorkbenchToolbar {
+                    Mode = Model.Mode, SelectedId = formId, CanWrite = Model.CanWrite,
+                    Filters = Model.List.Filters })" />
+            </div>
+
+            <div class="wb__body">
+                <partial name="_ValidationSummary" />
+
+                <form id="detail-form" asp-action="@saveAction" asp-route-search="@Model.List.Search" method="post">
+                    @Html.AntiForgeryToken()
+
+                    @if (Model.Kind == CatalogKind.VehicleTypes)
+                    {
+                        <input type="hidden" asp-for="VehicleTypeForm.Id" name="Id" />
+                        <div class="wb__section">
+                            <h3>Tipo de unidad</h3>
+                            <div class="grid grid--form">
+                                <div class="field">
+                                    <label>Código</label>
+                                    <input name="Code" value="@Model.VehicleTypeForm.Code" maxlength="20" required autofocus placeholder="DOLLY" />
+                                    <partial name="_FieldError" model="@("Code")" />
+                                </div>
+                                <div class="field">
+                                    <label>Nombre</label>
+                                    <input name="Name" value="@Model.VehicleTypeForm.Name" maxlength="80" required placeholder="Dolly convertidor" />
+                                    <partial name="_FieldError" model="@("Name")" />
+                                </div>
+                                <div class="field">
+                                    <label>Categoría</label>
+                                    <select name="Category">
+                                        <option value="@VehicleCategory.Motorized" selected="@(Model.VehicleTypeForm.Category == VehicleCategory.Motorized)">Motriz</option>
+                                        <option value="@VehicleCategory.Towed" selected="@(Model.VehicleTypeForm.Category == VehicleCategory.Towed)">De arrastre</option>
+                                    </select>
+                                    <span class="field__hint">Define si puede engancharse a un viaje como remolque.</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else if (Model.Kind == CatalogKind.ExpenseCategories)
+                    {
+                        <input type="hidden" asp-for="ExpenseCategoryForm.Id" name="Id" />
+                        <div class="wb__section">
+                            <h3>Concepto de gasto</h3>
+                            <div class="grid grid--form">
+                                <div class="field">
+                                    <label>Código</label>
+                                    <input name="Code" value="@Model.ExpenseCategoryForm.Code" maxlength="20" required autofocus placeholder="PENSION" />
+                                    <partial name="_FieldError" model="@("Code")" />
+                                </div>
+                                <div class="field">
+                                    <label>Nombre</label>
+                                    <input name="Name" value="@Model.ExpenseCategoryForm.Name" maxlength="80" required placeholder="Pensión de unidades" />
+                                    <partial name="_FieldError" model="@("Name")" />
+                                </div>
+                                <div class="field">
+                                    <label>Aplica a</label>
+                                    <select name="IsTripRelated">
+                                        <option value="true" selected="@Model.ExpenseCategoryForm.IsTripRelated">Costo directo del viaje</option>
+                                        <option value="false" selected="@(!Model.ExpenseCategoryForm.IsTripRelated)">Gasto de estructura</option>
+                                    </select>
+                                    <span class="field__hint">El de viaje entra a la utilidad de cada flete.</span>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <input type="hidden" asp-for="CustomFieldForm.Id" name="Id" />
+                        <div class="wb__section">
+                            <h3>Campo a la medida</h3>
+                            <div class="grid grid--form">
+                                <div class="field">
+                                    <label>Entidad</label>
+                                    <select name="Target">
+                                        @foreach (var target in Enum.GetValues<CustomFieldTarget>())
+                                        {
+                                            <option value="@target" selected="@(Model.CustomFieldForm.Target == target)">@target</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <label>Etiqueta</label>
+                                    <input name="Label" value="@Model.CustomFieldForm.Label" maxlength="80" required autofocus placeholder="Número de carta porte" />
+                                    <partial name="_FieldError" model="@("Label")" />
+                                </div>
+                                <div class="field">
+                                    <label>Llave</label>
+                                    <input name="Key" value="@Model.CustomFieldForm.Key" maxlength="40" required placeholder="carta_porte" />
+                                    <partial name="_FieldError" model="@("Key")" />
+                                    <span class="field__hint">Con la que se guarda el valor. No la cambie una vez capturados los datos.</span>
+                                </div>
+                                <div class="field">
+                                    <label>Tipo de dato</label>
+                                    <select name="Type">
+                                        <option value="@CustomFieldType.Text" selected="@(Model.CustomFieldForm.Type == CustomFieldType.Text)">Texto</option>
+                                        <option value="@CustomFieldType.Number" selected="@(Model.CustomFieldForm.Type == CustomFieldType.Number)">Número</option>
+                                        <option value="@CustomFieldType.Date" selected="@(Model.CustomFieldForm.Type == CustomFieldType.Date)">Fecha</option>
+                                        <option value="@CustomFieldType.Boolean" selected="@(Model.CustomFieldForm.Type == CustomFieldType.Boolean)">Sí o no</option>
+                                        <option value="@CustomFieldType.Select" selected="@(Model.CustomFieldForm.Type == CustomFieldType.Select)">Lista</option>
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <label>Opciones</label>
+                                    <input name="Options" value="@Model.CustomFieldForm.Options" placeholder="General|Refrigerada|Granel" />
+                                    <partial name="_FieldError" model="@("Options")" />
+                                    <span class="field__hint">Solo para el tipo lista, separadas por |.</span>
+                                </div>
+                                <div class="field">
+                                    <label>Obligatorio</label>
+                                    <select name="IsRequired">
+                                        <option value="false" selected="@(!Model.CustomFieldForm.IsRequired)">No</option>
+                                        <option value="true" selected="@Model.CustomFieldForm.IsRequired">Sí</option>
+                                    </select>
+                                </div>
+                                <div class="field">
+                                    <label>Orden</label>
+                                    <input name="DisplayOrder" type="number" min="0" max="999" value="@Model.CustomFieldForm.DisplayOrder" />
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </form>
+            </div>
+        }
+    </section>
+</div>

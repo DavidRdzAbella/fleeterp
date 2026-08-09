@@ -1,0 +1,222 @@
+@model FinanceViewModel
+@{
+    var s = ViewData["Settings"] as TenantSettingsModel ?? TenantSettingsModel.Fallback();
+    var r = Model.Report;
+    var m = r.Summary;
+
+    ViewData["Title"] = "Gastos y ganancias";
+    ViewData["Subtitle"] = $"{Model.Period.Label} · costo = combustible + gastos de ruta + nómina de operadores + taller";
+
+    string Series(IReadOnlyList<TimeSeriesPointModel> points) =>
+        System.Text.Json.JsonSerializer.Serialize(points.Select(x => x.Value));
+
+    string Days(IReadOnlyList<TimeSeriesPointModel> points) =>
+        System.Text.Json.JsonSerializer.Serialize(points.Select(x => x.Date.ToString("dd/MM")));
+
+    string Labels(IEnumerable<NamedValueModel> values) =>
+        System.Text.Json.JsonSerializer.Serialize(values.Select(x => x.Label));
+
+    string Values(IEnumerable<NamedValueModel> values) =>
+        System.Text.Json.JsonSerializer.Serialize(values.Select(x => x.Value));
+}
+
+@section TopbarActions {
+    <partial name="_PeriodPicker" model="Model.Period" />
+    <button type="button" class="btn" onclick="window.print()">Imprimir</button>
+}
+
+<div class="grid grid--kpi">
+    <div class="metric">
+        <div class="metric__label">Vendido</div>
+        <div class="metric__value">@Display.MoneyShort(m.Revenue, s)</div>
+        <div class="metric__note">@Display.Money(m.RevenuePerDistanceUnit, s) por @Display.DistanceUnitLabel(s)</div>
+    </div>
+    <div class="metric">
+        <div class="metric__label">Gasto en combustible</div>
+        <div class="metric__value">@Display.MoneyShort(m.FuelCost, s)</div>
+        <div class="metric__note">@Display.Volume(m.FuelQuantity, s) cargados</div>
+    </div>
+    <div class="metric">
+        <div class="metric__label">Pagado a operadores</div>
+        <div class="metric__value">@Display.MoneyShort(m.DriverPay, s)</div>
+        <div class="metric__note">@r.Payroll.Count operador(es) con viajes</div>
+    </div>
+    <div class="metric">
+        <div class="metric__label">Otros gastos</div>
+        <div class="metric__value">@Display.MoneyShort(m.OtherExpenses + m.MaintenanceCost, s)</div>
+        <div class="metric__note">Ruta @Display.MoneyShort(m.OtherExpenses, s) · taller @Display.MoneyShort(m.MaintenanceCost, s)</div>
+    </div>
+    <div class="metric @(m.Profit >= 0 ? "metric--good" : "metric--bad")">
+        <div class="metric__label">Ganancia</div>
+        <div class="metric__value">@Display.MoneyShort(m.Profit, s)</div>
+        <div class="metric__note">Margen @Display.Percent(m.ProfitMargin) · costo @Display.Money(m.CostPerDistanceUnit, s)/@Display.DistanceUnitLabel(s)</div>
+    </div>
+</div>
+
+<section class="panel mt-16">
+    <div class="panel__head">
+        <h2>Vendido contra costo, día por día</h2>
+        <span class="panel__hint">Donde la línea verde va por debajo de la ámbar, el día cerró en pérdida</span>
+    </div>
+    <div class="panel__body">
+        <div class="chart">
+            <canvas data-chart-dual="true"
+                    data-labels="@Days(r.RevenueByDay)"
+                    data-values-a="@Series(r.RevenueByDay)" data-label-a="Vendido"
+                    data-values-b="@Series(r.CostByDay)" data-label-b="Costo"></canvas>
+        </div>
+    </div>
+</section>
+
+<div class="grid grid--thirds">
+    <section class="panel mb-0">
+        <div class="panel__head"><h2>Gastos por concepto</h2></div>
+        <div class="panel__body">
+            @if (r.ExpensesByCategory.Count == 0)
+            {
+                <p class="muted mb-0">Sin gastos capturados en el periodo.</p>
+            }
+            else
+            {
+                <div class="chart chart--short">
+                    <canvas data-chart="donut" data-money="true"
+                            data-labels="@Labels(r.ExpensesByCategory)" data-values="@Values(r.ExpensesByCategory)"></canvas>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="panel mb-0">
+        <div class="panel__head"><h2>Costo por unidad</h2></div>
+        <div class="panel__body">
+            @if (r.CostByVehicle.Count == 0)
+            {
+                <p class="muted mb-0">Sin costos asignados a unidades.</p>
+            }
+            else
+            {
+                <div class="chart chart--short">
+                    <canvas data-chart="hbars" data-money="true" data-label="Costo"
+                            data-labels="@Labels(r.CostByVehicle.Take(8))" data-values="@Values(r.CostByVehicle.Take(8))"></canvas>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="panel mb-0">
+        <div class="panel__head"><h2>Venta por cliente</h2></div>
+        <div class="panel__body">
+            @if (r.RevenueByCustomer.Count == 0)
+            {
+                <p class="muted mb-0">Sin fletes registrados.</p>
+            }
+            else
+            {
+                <div class="chart chart--short">
+                    <canvas data-chart="hbars" data-money="true" data-label="Vendido"
+                            data-labels="@Labels(r.RevenueByCustomer.Take(8))" data-values="@Values(r.RevenueByCustomer.Take(8))"></canvas>
+                </div>
+            }
+        </div>
+    </section>
+</div>
+
+<div class="grid grid--halves mt-16">
+    <section class="panel mb-0">
+        <div class="panel__head">
+            <h2>Nómina de operadores</h2>
+            <span class="panel__hint">Lo que se le pagó a cada uno en el periodo</span>
+        </div>
+        <div class="panel__body panel__body--flush">
+            @if (r.Payroll.Count == 0)
+            {
+                <div class="empty"><h3>Sin nómina en el periodo</h3></div>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead>
+                        <tr>
+                            <th>Operador</th>
+                            <th>Esquema</th>
+                            <th class="num">Viajes</th>
+                            <th class="num">Horas</th>
+                            <th class="num">Distancia</th>
+                            <th class="num">Importe</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in r.Payroll)
+                        {
+                            <tr>
+                                <td>
+                                    <a asp-controller="Drivers" asp-action="Details" asp-route-id="@row.DriverId"
+                                       asp-route-period="@Model.Period.Key">@row.DriverName</a>
+                                </td>
+                                <td>@row.Scheme</td>
+                                <td class="num">@row.Trips</td>
+                                <td class="num">@row.Hours.ToString("N1")</td>
+                                <td class="num">@Display.Distance(row.Distance, s)</td>
+                                <td class="num cell-strong">@Display.Money(row.Amount, s)</td>
+                            </tr>
+                        }
+                        </tbody>
+                        <tfoot>
+                        <tr>
+                            <th colspan="5">Total</th>
+                            <th class="num">@Display.Money(r.Payroll.Sum(p => p.Amount), s)</th>
+                        </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="panel mb-0">
+        <div class="panel__head">
+            <h2>Últimos gastos capturados</h2>
+        </div>
+        <div class="panel__body panel__body--flush">
+            @if (Model.RecentExpenses.Items.Count == 0)
+            {
+                <div class="empty">
+                    <h3>Sin gastos en el periodo</h3>
+                    <p>Los gastos se capturan desde el detalle de cada viaje.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead>
+                        <tr><th>Fecha</th><th>Concepto</th><th>Viaje</th><th>Descripción</th><th class="num">Importe</th></tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var expense in Model.RecentExpenses.Items)
+                        {
+                            <tr>
+                                <td class="num">@Display.DateLabel(expense.IncurredAtUtc, s)</td>
+                                <td>@expense.CategoryName</td>
+                                <td class="folio">
+                                    @if (expense.TripId is not null)
+                                    {
+                                        <a asp-controller="Trips" asp-action="Details" asp-route-id="@expense.TripId">@expense.TripFolio</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="muted">—</span>
+                                    }
+                                </td>
+                                <td>@expense.Description</td>
+                                <td class="num">@Display.Money(expense.Amount, s)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </section>
+</div>

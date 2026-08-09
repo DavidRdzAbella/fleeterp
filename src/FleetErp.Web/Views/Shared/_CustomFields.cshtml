@@ -1,0 +1,54 @@
+@model (IReadOnlyList<CustomFieldDefinitionModel> Definitions, Dictionary<string, string?> Values)
+@*
+    Dibuja los campos que la empresa agregó desde Parámetros. La vista no sabe
+    cuáles son ni cuántos: los lee de la definición, que es lo que permite
+    adaptar los formularios a un cliente nuevo sin desarrollo.
+*@
+@if (Model.Definitions.Count == 0)
+{
+    return;
+}
+
+<fieldset class="fieldset">
+    <legend>Campos de su empresa</legend>
+    <div class="grid grid--form">
+        @foreach (var field in Model.Definitions)
+        {
+            var name = $"CustomFields[{field.Key}]";
+            var value = Model.Values.TryGetValue(field.Key, out var current) ? current : null;
+
+            <div class="field">
+                <label for="cf-@field.Key">@field.Label</label>
+
+                @switch (field.Type)
+                {
+                    case CustomFieldType.Number:
+                        <input id="cf-@field.Key" name="@name" type="number" step="any" value="@value" required="@field.IsRequired" />
+                        break;
+                    case CustomFieldType.Date:
+                        <input id="cf-@field.Key" name="@name" type="date" value="@value" required="@field.IsRequired" />
+                        break;
+                    case CustomFieldType.Boolean:
+                        <select id="cf-@field.Key" name="@name">
+                            <option value="">—</option>
+                            <option value="true" selected="@(value == "true")">Sí</option>
+                            <option value="false" selected="@(value == "false")">No</option>
+                        </select>
+                        break;
+                    case CustomFieldType.Select:
+                        <select id="cf-@field.Key" name="@name" required="@field.IsRequired">
+                            <option value="">—</option>
+                            @foreach (var option in field.Options)
+                            {
+                                <option value="@option" selected="@(value == option)">@option</option>
+                            }
+                        </select>
+                        break;
+                    default:
+                        <input id="cf-@field.Key" name="@name" type="text" value="@value" required="@field.IsRequired" />
+                        break;
+                }
+            </div>
+        }
+    </div>
+</fieldset>

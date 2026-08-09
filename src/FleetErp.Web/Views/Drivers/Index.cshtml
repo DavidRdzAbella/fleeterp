@@ -1,0 +1,143 @@
+@model DriversWorkbench
+@{
+    var s = ViewData["Settings"] as TenantSettingsModel ?? TenantSettingsModel.Fallback();
+    ViewData["Title"] = "Conductores";
+    ViewData["Subtitle"] = "Padrón de operadores de la empresa";
+    var d = Model.Selected;
+    var p = Model.Performance;
+}
+
+@section TopbarActions {
+    <a class="btn" asp-action="Ranking">Ver ranking</a>
+    @if (Model.CanWrite)
+    {
+        <a class="btn btn--primary" asp-action="Index" asp-route-id="" asp-route-mode="new" asp-route-search="@Model.List.Search">+ Nuevo conductor</a>
+    }
+}
+
+<div class="wb">
+    <partial name="_WorkbenchList" model="Model.List" />
+
+    <section class="wb__detail">
+        @if (Model.Mode == WorkbenchMode.Empty)
+        {
+            <div class="wb__placeholder">
+                <h3>Seleccione un conductor</h3>
+                <p>Elija uno de la lista para ver su ficha y su resultado del último mes.</p>
+                @if (Model.CanWrite)
+                {
+                    <a class="btn btn--primary" asp-action="Index" asp-route-id="" asp-route-mode="new">+ Nuevo conductor</a>
+                }
+            </div>
+        }
+        else if (Model.Mode == WorkbenchMode.View && d is not null)
+        {
+            <div class="wb__detail-head">
+                <div class="wb__detail-title">
+                    <h2>@d.FullName</h2>
+                    <p>@Display.PaySchemeLabel(d.PayScheme) a @Display.PayRateLabel(d.PayScheme, d.PayRate, s)</p>
+                </div>
+                <span class="tag tag--@Display.DriverStatusTone(d.Status)">@Display.DriverStatusLabel(d.Status)</span>
+                @if (!d.IsActive)
+                {
+                    <span class="tag tag--void">Dado de baja</span>
+                }
+                <a class="btn" asp-action="Details" asp-route-id="@d.Id">Desempeño</a>
+                <partial name="_WorkbenchToolbar" model="@(new WorkbenchToolbar {
+                    Mode = Model.Mode, SelectedId = d.Id, CanWrite = Model.CanWrite,
+                    DeleteLabel = d.IsActive ? "Dar de baja" : "Reactivar",
+                    DeleteConfirm = d.IsActive
+                        ? $"¿Dar de baja a {d.FullName}? Dejará de aparecer al programar viajes."
+                        : $"¿Reactivar a {d.FullName}?",
+                    Filters = Model.List.Filters })" />
+            </div>
+
+            <div class="wb__body">
+                @if (d.LicenseExpiringSoon && d.IsActive)
+                {
+                    <div class="notice notice--warn" role="alert">
+                        <strong>Licencia por vencer.</strong>
+                        La licencia @d.LicenseNumber vence el @d.LicenseExpiry?.ToString("dd/MM/yyyy"). Programe la renovación.
+                    </div>
+                }
+
+                <div class="wb__section">
+                    <h3>Datos</h3>
+                    <div class="wb__facts">
+                        <div class="wb__fact"><dt>Número de empleado</dt><dd class="num">@d.EmployeeNumber.Or()</dd></div>
+                        <div class="wb__fact"><dt>Licencia</dt><dd class="num">@d.LicenseNumber</dd></div>
+                        <div class="wb__fact"><dt>Tipo de licencia</dt><dd>@d.LicenseType.Or()</dd></div>
+                        <div class="wb__fact"><dt>Vence licencia</dt><dd class="num">@(d.LicenseExpiry?.ToString("dd/MM/yyyy").Or())</dd></div>
+                        <div class="wb__fact"><dt>Ingreso</dt><dd class="num">@(d.HireDate?.ToString("dd/MM/yyyy").Or())</dd></div>
+                        <div class="wb__fact"><dt>Teléfono</dt><dd class="num">@d.Phone.Or()</dd></div>
+                        <div class="wb__fact"><dt>Correo</dt><dd>@d.Email.Or()</dd></div>
+                    </div>
+                </div>
+
+                @if (p is not null)
+                {
+                    <div class="wb__section">
+                        <h3>Últimos 30 días</h3>
+                        <div class="grid grid--kpi">
+                            <div class="metric">
+                                <div class="metric__label">Recorrió</div>
+                                <div class="metric__value">@p.Distance.ToString("N0")</div>
+                                <div class="metric__note">@Display.DistanceUnitLabel(s) en @p.Trips viaje(s)</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric__label">Combustible</div>
+                                <div class="metric__value">@Display.MoneyShort(p.FuelCost, s)</div>
+                                <div class="metric__note">Rendimiento @Display.Efficiency(p.AverageFuelEfficiency, s)</div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric__label">Vendió</div>
+                                <div class="metric__value">@Display.MoneyShort(p.Revenue, s)</div>
+                                <div class="metric__note">Se le pagó @Display.MoneyShort(p.DriverPay, s)</div>
+                            </div>
+                            <div class="metric @(p.Profit >= 0 ? "metric--good" : "metric--bad")">
+                                <div class="metric__label">Dejó a la empresa</div>
+                                <div class="metric__value">@Display.MoneyShort(p.Profit, s)</div>
+                                <div class="metric__note">Puntualidad @Display.Percent(p.OnTimeRate)</div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (d.CustomFields.Count > 0)
+                {
+                    <div class="wb__section">
+                        <h3>Campos de su empresa</h3>
+                        <div class="wb__facts">
+                            @foreach (var (key, value) in d.CustomFields)
+                            {
+                                <div class="wb__fact"><dt>@key</dt><dd>@value</dd></div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="wb__detail-head">
+                <div class="wb__detail-title">
+                    <h2>@(Model.Form.IsNew ? "Nuevo conductor" : $"Editar a {Model.Form.FirstName} {Model.Form.LastName}")</h2>
+                    <p>El esquema de pago define cómo se calcula su nómina en cada viaje</p>
+                </div>
+                <partial name="_WorkbenchToolbar" model="@(new WorkbenchToolbar {
+                    Mode = Model.Mode, SelectedId = Model.Form.Id, CanWrite = Model.CanWrite,
+                    Filters = Model.List.Filters })" />
+            </div>
+
+            <div class="wb__body">
+                <partial name="_ValidationSummary" />
+                @{ ViewData["Search"] = Model.List.Search; }
+                <partial name="_Form" model="Model.Form" />
+            </div>
+        }
+    </section>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

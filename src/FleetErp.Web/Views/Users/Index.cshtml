@@ -1,0 +1,104 @@
+@model UsersWorkbench
+@{
+    var s = ViewData["Settings"] as TenantSettingsModel ?? TenantSettingsModel.Fallback();
+    ViewData["Title"] = "Usuarios";
+    ViewData["Subtitle"] = "Quién entra al portal y qué puede hacer";
+    var u = Model.Selected;
+}
+
+@section TopbarActions {
+    <a class="btn btn--primary" asp-action="Index" asp-route-id="" asp-route-mode="new" asp-route-search="@Model.List.Search">+ Nuevo usuario</a>
+}
+
+<div class="wb">
+    <partial name="_WorkbenchList" model="Model.List" />
+
+    <section class="wb__detail">
+        @if (Model.Mode == WorkbenchMode.Empty)
+        {
+            <div class="wb__placeholder">
+                <h3>Seleccione un usuario</h3>
+                <p>
+                    Hay tres perfiles: administrador configura la empresa, despachador captura la operación
+                    y consulta solo lee los tableros.
+                </p>
+                <a class="btn btn--primary" asp-action="Index" asp-route-id="" asp-route-mode="new">+ Nuevo usuario</a>
+            </div>
+        }
+        else if (Model.Mode == WorkbenchMode.View && u is not null)
+        {
+            <div class="wb__detail-head">
+                <div class="wb__detail-title">
+                    <h2>@u.FullName</h2>
+                    <p>@u.Email</p>
+                </div>
+                <span class="tag tag--@Display.RoleTone(u.Role)">
+                    @Display.RoleLabel(u.Role)
+                </span>
+                @if (!u.IsActive)
+                {
+                    <span class="tag tag--void">Desactivado</span>
+                }
+                <partial name="_WorkbenchToolbar" model="@(new WorkbenchToolbar {
+                    Mode = Model.Mode, SelectedId = u.Id, CanWrite = Model.CanWrite,
+                    DeleteLabel = u.IsActive ? "Desactivar" : "Reactivar",
+                    DeleteConfirm = u.IsActive
+                        ? $"¿Desactivar la cuenta de {u.FullName}? No podrá volver a entrar."
+                        : $"¿Reactivar la cuenta de {u.FullName}?",
+                    Filters = Model.List.Filters })" />
+            </div>
+
+            <div class="wb__body">
+                <div class="wb__section">
+                    <h3>Cuenta</h3>
+                    <div class="wb__facts">
+                        <div class="wb__fact"><dt>Nombre</dt><dd>@u.FullName</dd></div>
+                        <div class="wb__fact"><dt>Correo</dt><dd>@u.Email</dd></div>
+                        <div class="wb__fact"><dt>Perfil</dt><dd>@Display.RoleLabel(u.Role)</dd></div>
+                        <div class="wb__fact"><dt>Alta</dt><dd class="num">@Display.DateLabel(u.CreatedAtUtc, s)</dd></div>
+                        <div class="wb__fact">
+                            <dt>Última entrada</dt>
+                            <dd class="num">@(u.LastLoginUtc is null ? "Nunca ha entrado" : Display.DateTimeLabel(u.LastLoginUtc, s))</dd>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="wb__section">
+                    <h3>Restablecer contraseña</h3>
+                    <form asp-action="ResetPassword" asp-route-id="@u.Id" asp-route-search="@Model.List.Search" method="post" class="filters">
+                        @Html.AntiForgeryToken()
+                        <div class="field">
+                            <label for="password">Contraseña nueva</label>
+                            <input id="password" name="password" type="password" autocomplete="new-password" required minlength="8" />
+                            <span class="field__hint">Mínimo 8 caracteres, con al menos una letra y un número.</span>
+                        </div>
+                        <button type="submit" class="btn"
+                                data-confirm="@($"¿Restablecer la contraseña de {u.FullName}?")">Restablecer</button>
+                    </form>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="wb__detail-head">
+                <div class="wb__detail-title">
+                    <h2>@(Model.Form.IsNew ? "Nuevo usuario" : $"Editar a {Model.Form.FullName}")</h2>
+                    <p>El perfil determina qué pantallas y qué botones ve la persona</p>
+                </div>
+                <partial name="_WorkbenchToolbar" model="@(new WorkbenchToolbar {
+                    Mode = Model.Mode, SelectedId = Model.Form.Id, CanWrite = Model.CanWrite,
+                    Filters = Model.List.Filters })" />
+            </div>
+
+            <div class="wb__body">
+                <partial name="_ValidationSummary" />
+                @{ ViewData["Search"] = Model.List.Search; }
+                <partial name="_Form" model="Model.Form" />
+            </div>
+        }
+    </section>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

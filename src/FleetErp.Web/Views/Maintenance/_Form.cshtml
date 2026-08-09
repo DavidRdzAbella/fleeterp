@@ -1,0 +1,44 @@
+@model MaintenanceFormViewModel
+@{
+    var search = ViewData["Search"] as string;
+}
+
+<form id="detail-form" asp-action="Save" asp-route-search="@search" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+
+    <div class="wb__section">
+        <h3>Apertura de la orden</h3>
+        <div class="grid grid--form">
+            <div class="field">
+                <label asp-for="VehicleId"></label>
+                <select asp-for="VehicleId" autofocus>
+                    <option value="">Seleccione…</option>
+                    @foreach (var vehicle in Model.VehicleOptions)
+                    {
+                        <option value="@vehicle.Id" selected="@(Model.VehicleId == vehicle.Id)">@vehicle.Label — @vehicle.Detail</option>
+                    }
+                </select>
+                <span class="field__hint">Una unidad en viaje no puede entrar a taller.</span>
+                <span asp-validation-for="VehicleId" class="field-error"></span>
+            </div>
+            <div class="field">
+                <label asp-for="Kind"></label>
+                <select asp-for="Kind">
+                    <option value="@MaintenanceKind.Preventive" selected="@(Model.Kind == MaintenanceKind.Preventive)">Preventivo</option>
+                    <option value="@MaintenanceKind.Corrective" selected="@(Model.Kind == MaintenanceKind.Corrective)">Correctivo</option>
+                </select>
+            </div>
+            <div class="field">
+                <label asp-for="OpenedAt"></label>
+                <input asp-for="OpenedAt" type="datetime-local" />
+            </div>
+        </div>
+
+        <div class="field">
+            <label asp-for="Description"></label>
+            <textarea asp-for="Description" placeholder="Falla en sistema de frenos traseros"></textarea>
+            <span asp-validation-for="Description" class="field-error"></span>
+        </div>
+    </div>
+</form>

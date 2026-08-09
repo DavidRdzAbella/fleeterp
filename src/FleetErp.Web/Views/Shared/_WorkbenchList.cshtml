@@ -1,0 +1,71 @@
+@model WorkbenchList
+@{
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString();
+
+    Dictionary<string, string?> LinkTo(Guid id)
+    {
+        var route = new Dictionary<string, string?>(Model.Filters) { ["id"] = id.ToString() };
+        if (!string.IsNullOrWhiteSpace(Model.Search)) route["search"] = Model.Search;
+        return route;
+    }
+}
+
+<div class="wb__list">
+    <form method="get" class="wb__search" role="search">
+        @foreach (var (key, value) in Model.Filters.Where(f => !string.IsNullOrWhiteSpace(f.Value) && f.Key != "id"))
+        {
+            <input type="hidden" name="@key" value="@value" />
+        }
+        <input type="search" name="search" value="@Model.Search"
+               placeholder="@Model.SearchPlaceholder" aria-label="@Model.SearchPlaceholder" />
+        <button type="submit" class="wb__search-go">Buscar</button>
+    </form>
+
+    <div class="wb__count">
+        <span>@Model.TotalCount registro(s)</span>
+        @if (!string.IsNullOrWhiteSpace(Model.Search))
+        {
+            <a asp-controller="@controller" asp-action="Index">Quitar filtro</a>
+        }
+    </div>
+
+    <ul class="wb__items">
+        @if (Model.Items.Count == 0)
+        {
+            <li class="wb__empty">@Model.EmptyMessage</li>
+        }
+        else
+        {
+            @foreach (var item in Model.Items)
+            {
+                var selected = Model.SelectedId == item.Id;
+                <li>
+                    <a class="wb__item @(selected ? "is-selected" : null) @(item.IsMuted ? "is-muted" : null)"
+                       asp-controller="@controller" asp-action="Index" asp-all-route-data="LinkTo(item.Id)"
+                       aria-current="@(selected ? "true" : null)">
+                        <span class="wb__item-head">
+                            <span class="wb__item-title">@item.Title</span>
+                            @if (item.Meta is not null)
+                            {
+                                <span class="wb__item-meta num">@item.Meta</span>
+                            }
+                        </span>
+                        @if (item.Subtitle is not null || item.Badge is not null)
+                        {
+                            <span class="wb__item-foot">
+                                @if (item.Subtitle is not null)
+                                {
+                                    <span class="wb__item-sub">@item.Subtitle</span>
+                                }
+                                @if (item.Badge is not null)
+                                {
+                                    <span class="tag tag--@(item.BadgeTone ?? "void")">@item.Badge</span>
+                                }
+                            </span>
+                        }
+                    </a>
+                </li>
+            }
+        }
+    </ul>
+</div>

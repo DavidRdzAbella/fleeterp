@@ -1,0 +1,15 @@
+@model PeriodSelection
+@{
+    var action = ViewData["PeriodAction"] as string ?? "Index";
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString();
+    var extra = ViewData["PeriodRouteValues"] as Dictionary<string, string?> ?? [];
+}
+
+<div class="period" role="group" aria-label="Periodo de análisis">
+    @foreach (var option in PeriodSelection.All)
+    {
+        var route = new Dictionary<string, string?>(extra) { ["period"] = option.Key };
+        <a class="@(option.Key == Model.Key ? "is-active" : null)"
+           asp-controller="@controller" asp-action="@action" asp-all-route-data="route">@option.Days d</a>
+    }
+</div>

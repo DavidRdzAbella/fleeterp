@@ -1,0 +1,42 @@
+@model CustomerFormViewModel
+@{
+    var search = ViewData["Search"] as string;
+}
+
+<form id="detail-form" asp-action="Save" asp-route-search="@search" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+
+    <div class="wb__section">
+        <h3>Datos fiscales y de contacto</h3>
+        <div class="grid grid--form">
+            <div class="field">
+                <label asp-for="Name"></label>
+                <input asp-for="Name" autofocus />
+                <span asp-validation-for="Name" class="field-error"></span>
+            </div>
+            <div class="field">
+                <label asp-for="TaxId"></label>
+                <input asp-for="TaxId" />
+            </div>
+            <div class="field">
+                <label asp-for="ContactName"></label>
+                <input asp-for="ContactName" />
+            </div>
+            <div class="field">
+                <label asp-for="Phone"></label>
+                <input asp-for="Phone" />
+            </div>
+            <div class="field">
+                <label asp-for="Email"></label>
+                <input asp-for="Email" type="email" />
+                <span asp-validation-for="Email" class="field-error"></span>
+            </div>
+        </div>
+
+        <div class="field">
+            <label asp-for="Address"></label>
+            <input asp-for="Address" />
+        </div>
+    </div>
+</form>

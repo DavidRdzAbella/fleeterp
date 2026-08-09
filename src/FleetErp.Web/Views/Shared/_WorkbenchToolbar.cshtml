@@ -1,0 +1,35 @@
+@model WorkbenchToolbar
+@{
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString();
+
+    // Al salir de captura se vuelve a la ficha en lectura conservando el filtro.
+    // El id se fija siempre —vacio en alta— porque la ruta {controller}/{action}/{id?}
+    // reutilizaria el del contexto y Cancelar reabriria un registro ajeno.
+    var backRoute = new Dictionary<string, string?>(Model.Filters)
+    {
+        ["id"] = Model.SelectedId?.ToString() ?? string.Empty
+    };
+}
+
+<div class="wb__actions">
+    @if (Model.Mode is WorkbenchMode.View && Model.CanWrite && Model.SelectedId is not null)
+    {
+        var editRoute = new Dictionary<string, string?>(backRoute) { ["mode"] = "edit" };
+        <a class="btn btn--primary" asp-controller="@controller" asp-action="Index" asp-all-route-data="editRoute">Editar</a>
+
+        @if (Model.CanDelete)
+        {
+            <form asp-controller="@controller" asp-action="@Model.DeleteAction" asp-route-id="@Model.SelectedId" method="post">
+                @Html.AntiForgeryToken()
+                @* El filtro vigente viaja con la accion para no perderlo al volver. *@
+                <input type="hidden" name="search" value="@Model.Filters.GetValueOrDefault("search")" />
+                <button type="submit" class="btn btn--danger" data-confirm="@Model.DeleteConfirm">@Model.DeleteLabel</button>
+            </form>
+        }
+    }
+    else if (Model.Mode is WorkbenchMode.Edit or WorkbenchMode.New)
+    {
+        <button type="submit" form="@Model.FormId" class="btn btn--primary">Guardar</button>
+        <a class="btn" asp-controller="@controller" asp-action="Index" asp-all-route-data="backRoute">Cancelar</a>
+    }
+</div>

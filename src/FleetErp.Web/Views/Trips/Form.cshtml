@@ -1,0 +1,198 @@
+@model TripFormViewModel
+@{
+    var s = ViewData["Settings"] as TenantSettingsModel ?? TenantSettingsModel.Fallback();
+    ViewData["Title"] = Model.IsNew ? "Programar viaje" : $"Editar viaje {Model.Folio}";
+    ViewData["Subtitle"] = Model.IsNew
+        ? "Capture el recorrido; el folio se asigna solo al guardar"
+        : "Solo se pueden reasignar conductor y unidad mientras el viaje esté en planeación";
+}
+
+<form asp-action="@(Model.IsNew ? "Create" : "Edit")" asp-route-id="@Model.Id" method="post">
+    @Html.AntiForgeryToken()
+    <partial name="_ValidationSummary" />
+
+    <div class="grid grid--halves">
+        <section class="panel mb-0">
+            <div class="panel__head"><h2>Asignación</h2></div>
+            <div class="panel__body">
+                <div class="field">
+                    <label asp-for="DriverId"></label>
+                    <select asp-for="DriverId">
+                        <option value="">Seleccione…</option>
+                        @foreach (var driver in Model.DriverOptions)
+                        {
+                            <option value="@driver.Id" selected="@(Model.DriverId == driver.Id)">@driver.Label — @driver.Detail</option>
+                        }
+                    </select>
+                    <span asp-validation-for="DriverId" class="field-error"></span>
+                    <span class="field__hint">Si no elige esquema de pago, se hereda el del conductor.</span>
+                </div>
+
+                <div class="grid grid--form">
+                    <div class="field">
+                        <label asp-for="VehicleId"></label>
+                        <select asp-for="VehicleId">
+                            <option value="">Seleccione…</option>
+                            @foreach (var vehicle in Model.VehicleOptions)
+                            {
+                                <option value="@vehicle.Id" selected="@(Model.VehicleId == vehicle.Id)">@vehicle.Label</option>
+                            }
+                        </select>
+                        <span asp-validation-for="VehicleId" class="field-error"></span>
+                    </div>
+
+                    <div class="field">
+                        <label asp-for="TrailerId"></label>
+                        <select asp-for="TrailerId">
+                            <option value="">Sin remolque</option>
+                            @foreach (var trailer in Model.TrailerOptions)
+                            {
+                                <option value="@trailer.Id" selected="@(Model.TrailerId == trailer.Id)">@trailer.Label</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label asp-for="CustomerId"></label>
+                    <select asp-for="CustomerId">
+                        <option value="">Sin cliente asignado</option>
+                        @foreach (var customer in Model.CustomerOptions)
+                        {
+                            <option value="@customer.Id" selected="@(Model.CustomerId == customer.Id)">@customer.Label</option>
+                        }
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel mb-0">
+            <div class="panel__head"><h2>Ruta y horario</h2></div>
+            <div class="panel__body">
+                <div class="grid grid--form">
+                    <div class="field">
+                        <label asp-for="Origin"></label>
+                        <input asp-for="Origin" placeholder="Monterrey, NL" />
+                        <span asp-validation-for="Origin" class="field-error"></span>
+                    </div>
+                    <div class="field">
+                        <label asp-for="Destination"></label>
+                        <input asp-for="Destination" placeholder="Ciudad de México" />
+                        <span asp-validation-for="Destination" class="field-error"></span>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label asp-for="PlannedDistance"></label>
+                    <input asp-for="PlannedDistance" type="number" step="0.01" min="0" />
+                    <span class="field__hint">En @Display.DistanceUnitLabel(s). Se compara contra el odómetro al cerrar el viaje.</span>
+                    <span asp-validation-for="PlannedDistance" class="field-error"></span>
+                </div>
+
+                <div class="grid grid--form">
+                    <div class="field">
+                        <label asp-for="ScheduledDeparture"></label>
+                        <input asp-for="ScheduledDeparture" type="datetime-local" />
+                        <span asp-validation-for="ScheduledDeparture" class="field-error"></span>
+                    </div>
+                    <div class="field">
+                        <label asp-for="ScheduledArrival"></label>
+                        <input asp-for="ScheduledArrival" type="datetime-local" />
+                        <span class="field__hint">Se usa para medir puntualidad.</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div class="grid grid--halves mt-16">
+        <section class="panel mb-0">
+            <div class="panel__head"><h2>Combustible y carga</h2></div>
+            <div class="panel__body">
+                <div class="grid grid--form">
+                    <div class="field">
+                        <label asp-for="InitialFuel"></label>
+                        <input asp-for="InitialFuel" type="number" step="0.01" min="0" />
+                        <span class="field__hint">Con cuánto sale la unidad, en @Display.VolumeUnitLabel(s).</span>
+                        <span asp-validation-for="InitialFuel" class="field-error"></span>
+                    </div>
+                    <div class="field">
+                        <label asp-for="CargoWeight"></label>
+                        <input asp-for="CargoWeight" type="number" step="0.01" min="0" />
+                        <span asp-validation-for="CargoWeight" class="field-error"></span>
+                    </div>
+                </div>
+
+                <div class="field--check">
+                    <input asp-for="RefuelPlanned" type="checkbox" />
+                    <label asp-for="RefuelPlanned"></label>
+                </div>
+
+                <div class="grid grid--form">
+                    <div class="field">
+                        <label asp-for="CargoWeightUnit"></label>
+                        <select asp-for="CargoWeightUnit">
+                            <option value="@WeightUnit.Kilogram" selected="@(Model.CargoWeightUnit == WeightUnit.Kilogram)">Kilogramos</option>
+                            <option value="@WeightUnit.Tonne" selected="@(Model.CargoWeightUnit == WeightUnit.Tonne)">Toneladas</option>
+                            <option value="@WeightUnit.Pound" selected="@(Model.CargoWeightUnit == WeightUnit.Pound)">Libras</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label asp-for="CargoDescription"></label>
+                        <input asp-for="CargoDescription" placeholder="Carga consolidada" />
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel mb-0">
+            <div class="panel__head"><h2>Condiciones comerciales</h2></div>
+            <div class="panel__body">
+                <div class="field">
+                    <label asp-for="FreightRevenue"></label>
+                    <input asp-for="FreightRevenue" type="number" step="0.01" min="0" />
+                    <span class="field__hint">Lo que se le cobra al cliente por este viaje.</span>
+                    <span asp-validation-for="FreightRevenue" class="field-error"></span>
+                </div>
+
+                <div class="grid grid--form">
+                    <div class="field">
+                        <label asp-for="DriverPayScheme"></label>
+                        <select asp-for="DriverPayScheme">
+                            @foreach (var scheme in Enum.GetValues<DriverPayScheme>())
+                            {
+                                <option value="@scheme" selected="@(Model.DriverPayScheme == scheme)">@Display.PaySchemeLabel(scheme)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label asp-for="DriverPayRate"></label>
+                        <input asp-for="DriverPayRate" type="number" step="0.01" min="0" />
+                        <span class="field__hint">Importe por hora, por distancia, por viaje o porcentaje, según el esquema.</span>
+                        <span asp-validation-for="DriverPayRate" class="field-error"></span>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label asp-for="Notes"></label>
+                    <textarea asp-for="Notes" placeholder="Instrucciones para el operador, referencias de la carga…"></textarea>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div class="panel mt-16">
+        <div class="panel__body">
+            <partial name="_CustomFields" model="@((Model.CustomFieldDefinitions, Model.CustomFields))" />
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn--primary">@(Model.IsNew ? "Programar viaje" : "Guardar cambios")</button>
+                <a class="btn" asp-action="Index">Cancelar</a>
+            </div>
+        </div>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

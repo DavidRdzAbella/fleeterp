@@ -1,0 +1,98 @@
+@model DriversIndexViewModel
+@{
+    var s = ViewData["Settings"] as TenantSettingsModel ?? TenantSettingsModel.Fallback();
+    ViewData["Title"] = "Ranking de conductores";
+    ViewData["Subtitle"] = $"{Model.Period.Label} · ordenado por {Display.RankingCriteriaLabel(Model.Criteria).ToLowerInvariant()}";
+    ViewData["PeriodAction"] = "Ranking";
+    ViewData["PeriodRouteValues"] = new Dictionary<string, string?> { ["criteria"] = Model.Criteria.ToString() };
+
+    decimal Value(DriverRankingRowModel r) => Model.Criteria switch
+    {
+        DriverRankingCriteria.Revenue => r.Revenue,
+        DriverRankingCriteria.Profit => r.Profit,
+        DriverRankingCriteria.Trips => r.Trips,
+        DriverRankingCriteria.FuelEfficiency => r.AverageFuelEfficiency,
+        _ => r.Distance
+    };
+
+    var isMoney = Model.Criteria is DriverRankingCriteria.Revenue or DriverRankingCriteria.Profit;
+}
+
+@section TopbarActions {
+    <partial name="_PeriodPicker" model="Model.Period" />
+    <a class="btn" asp-action="Index">Volver al padrón</a>
+}
+
+<section class="panel">
+    <div class="panel__head">
+        <h2>Comparativa del periodo</h2>
+        <form method="get" class="filters">
+            <input type="hidden" name="period" value="@Model.Period.Key" />
+            <div class="field">
+                <label for="criteria">Ordenar por</label>
+                <select id="criteria" name="criteria" data-autosubmit>
+                    @foreach (var criteria in Enum.GetValues<DriverRankingCriteria>())
+                    {
+                        <option value="@criteria" selected="@(Model.Criteria == criteria)">@Display.RankingCriteriaLabel(criteria)</option>
+                    }
+                </select>
+            </div>
+        </form>
+    </div>
+
+    <div class="panel__body panel__body--flush">
+        @if (Model.Ranking.Count == 0)
+        {
+            <div class="empty">
+                <h3>Sin viajes en el periodo</h3>
+                <p>El ranking se arma con los viajes despachados dentro del rango elegido.</p>
+            </div>
+        }
+        else
+        {
+            <div class="grid grid--halves" style="padding:18px">
+                <div class="chart">
+                    <canvas data-chart="hbars" data-label="@Display.RankingCriteriaLabel(Model.Criteria)"
+                            data-money="@isMoney.ToString().ToLowerInvariant()"
+                            data-labels="@System.Text.Json.JsonSerializer.Serialize(Model.Ranking.Select(r => r.DriverName))"
+                            data-values="@System.Text.Json.JsonSerializer.Serialize(Model.Ranking.Select(Value))"></canvas>
+                </div>
+
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Conductor</th>
+                            <th class="num">Viajes</th>
+                            <th class="num">Distancia</th>
+                            <th class="num">Vendió</th>
+                            <th class="num">Combustible</th>
+                            <th class="num">Se le pagó</th>
+                            <th class="num">Dejó</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in Model.Ranking)
+                        {
+                            <tr>
+                                <td><span class="rank rank--@row.Rank">@row.Rank</span></td>
+                                <td>
+                                    <a asp-action="Details" asp-route-id="@row.DriverId" asp-route-period="@Model.Period.Key">@row.DriverName</a>
+                                    <span class="cell-sub">Puntualidad @Display.Percent(row.OnTimeRate)</span>
+                                </td>
+                                <td class="num">@row.Trips</td>
+                                <td class="num">@Display.Distance(row.Distance, s)</td>
+                                <td class="num">@Display.MoneyShort(row.Revenue, s)</td>
+                                <td class="num">@Display.MoneyShort(row.FuelCost, s)</td>
+                                <td class="num">@Display.MoneyShort(row.DriverPay, s)</td>
+                                <td class="num @(row.Profit >= 0 ? "money-positive" : "money-negative")">@Display.MoneyShort(row.Profit, s)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+    </div>
+</section>

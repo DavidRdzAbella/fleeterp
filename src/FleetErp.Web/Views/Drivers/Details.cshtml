@@ -1,0 +1,148 @@
+@model DriverDetailViewModel
+@{
+    var s = ViewData["Settings"] as TenantSettingsModel ?? TenantSettingsModel.Fallback();
+    var canWrite = ViewData["CanWrite"] as bool? ?? false;
+    var p = Model.Performance;
+    var d = Model.Driver;
+
+    ViewData["Title"] = d.FullName;
+    ViewData["Subtitle"] = $"{Model.Period.Label} · {Display.PaySchemeLabel(d.PayScheme)} a {Display.PayRateLabel(d.PayScheme, d.PayRate, s)}";
+    ViewData["PeriodAction"] = "Details";
+    ViewData["PeriodRouteValues"] = new Dictionary<string, string?> { ["id"] = d.Id.ToString() };
+
+    string Series(IReadOnlyList<TimeSeriesPointModel> points) =>
+        System.Text.Json.JsonSerializer.Serialize(points.Select(x => x.Value));
+
+    string Days(IReadOnlyList<TimeSeriesPointModel> points) =>
+        System.Text.Json.JsonSerializer.Serialize(points.Select(x => x.Date.ToString("dd/MM")));
+}
+
+@section TopbarActions {
+    <partial name="_PeriodPicker" model="Model.Period" />
+    @if (canWrite)
+    {
+        <a class="btn" asp-action="Edit" asp-route-id="@d.Id">Editar</a>
+    }
+    <a class="btn" asp-action="Index">Volver</a>
+}
+
+@if (d.LicenseExpiringSoon)
+{
+    <div class="notice notice--warn" role="alert">
+        <strong>Licencia por vencer.</strong>
+        La licencia @d.LicenseNumber vence el @d.LicenseExpiry?.ToString("dd/MM/yyyy"). Programe la renovación antes de asignarle viajes largos.
+    </div>
+}
+
+@* --- Resumen del periodo, en el orden en que lo pidió el cliente ---------- *@
+<div class="grid grid--kpi">
+    <div class="metric">
+        <div class="metric__label">Distancia recorrida</div>
+        <div class="metric__value">@p.Distance.ToString("N0")</div>
+        <div class="metric__note">@Display.DistanceUnitLabel(s) en @p.Trips viaje(s)</div>
+    </div>
+    <div class="metric">
+        <div class="metric__label">Gasto de combustible</div>
+        <div class="metric__value">@Display.MoneyShort(p.FuelCost, s)</div>
+        <div class="metric__note">@Display.Volume(p.FuelQuantity, s) · rendimiento @Display.Efficiency(p.AverageFuelEfficiency, s)</div>
+    </div>
+    <div class="metric">
+        <div class="metric__label">Vendió</div>
+        <div class="metric__value">@Display.MoneyShort(p.Revenue, s)</div>
+        <div class="metric__note">Gastos de ruta @Display.MoneyShort(p.OtherExpenses, s)</div>
+    </div>
+    <div class="metric">
+        <div class="metric__label">Se le pagó</div>
+        <div class="metric__value">@Display.MoneyShort(p.DriverPay, s)</div>
+        <div class="metric__note">@p.HoursWorked.ToString("N1") horas registradas</div>
+    </div>
+    <div class="metric @(p.Profit >= 0 ? "metric--good" : "metric--bad")">
+        <div class="metric__label">Ganancia para la empresa</div>
+        <div class="metric__value">@Display.MoneyShort(p.Profit, s)</div>
+        <div class="metric__note">Margen @Display.Percent(p.ProfitMargin)</div>
+    </div>
+</div>
+
+<div class="grid grid--halves mt-16">
+    <section class="panel mb-0">
+        <div class="panel__head">
+            <h2>Distancia por día</h2>
+            <span class="panel__hint">@Display.DistanceUnitLabel(s)</span>
+        </div>
+        <div class="panel__body">
+            <div class="chart">
+                <canvas data-chart="area" data-label="Distancia"
+                        data-labels="@Days(p.DistanceByDay)" data-values="@Series(p.DistanceByDay)"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel mb-0">
+        <div class="panel__head">
+            <h2>Flete vendido por día</h2>
+        </div>
+        <div class="panel__body">
+            <div class="chart">
+                <canvas data-chart="bars" data-label="Vendido" data-money="true"
+                        data-labels="@Days(p.RevenueByDay)" data-values="@Series(p.RevenueByDay)"></canvas>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div class="grid grid--halves mt-16">
+    <section class="panel mb-0">
+        <div class="panel__head"><h2>Ficha del operador</h2></div>
+        <div class="panel__body">
+            <dl class="kv">
+                <dt>Estado</dt><dd><span class="tag tag--@Display.DriverStatusTone(d.Status)">@Display.DriverStatusLabel(d.Status)</span></dd>
+                <dt>Número de empleado</dt><dd>@(d.EmployeeNumber ?? "—")</dd>
+                <dt>Licencia</dt><dd class="num">@d.LicenseNumber @(string.IsNullOrWhiteSpace(d.LicenseType) ? "" : $"· {d.LicenseType}")</dd>
+                <dt>Vence licencia</dt><dd class="num">@(d.LicenseExpiry?.ToString("dd/MM/yyyy") ?? "—")</dd>
+                <dt>Ingreso</dt><dd class="num">@(d.HireDate?.ToString("dd/MM/yyyy") ?? "—")</dd>
+                <dt>Teléfono</dt><dd>@(d.Phone ?? "—")</dd>
+                <dt>Correo</dt><dd>@(d.Email ?? "—")</dd>
+                <dt>Puntualidad</dt><dd>@Display.Percent(p.OnTimeRate) · @p.LateTrips llegada(s) tarde</dd>
+                @foreach (var (key, value) in d.CustomFields)
+                {
+                    <dt>@key</dt><dd>@value</dd>
+                }
+            </dl>
+        </div>
+    </section>
+
+    <section class="panel mb-0">
+        <div class="panel__head">
+            <h2>Últimos viajes</h2>
+            <a class="btn btn--small" asp-controller="Trips" asp-action="Index" asp-route-driverId="@d.Id">Ver todos</a>
+        </div>
+        <div class="panel__body panel__body--flush">
+            @if (Model.RecentTrips.Count == 0)
+            {
+                <div class="empty"><h3>Sin viajes registrados</h3></div>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead>
+                        <tr><th>Folio</th><th>Destino</th><th>Estado</th><th class="num">Distancia</th><th class="num">Utilidad</th></tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var trip in Model.RecentTrips)
+                        {
+                            <tr>
+                                <td class="folio"><a asp-controller="Trips" asp-action="Details" asp-route-id="@trip.Id">@trip.Folio</a></td>
+                                <td>@trip.Destination</td>
+                                <td><span class="tag tag--@Display.TripStatusTone(trip.Status)">@Display.TripStatusLabel(trip.Status)</span></td>
+                                <td class="num">@Display.Distance(trip.ActualDistance > 0 ? trip.ActualDistance : trip.PlannedDistance, s)</td>
+                                <td class="num @(trip.Profit >= 0 ? "money-positive" : "money-negative")">@Display.MoneyShort(trip.Profit, s)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </section>
+</div>

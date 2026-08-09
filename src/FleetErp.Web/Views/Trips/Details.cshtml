@@ -1,0 +1,349 @@
+@model TripDetailViewModel
+@{
+    var s = ViewData["Settings"] as TenantSettingsModel ?? TenantSettingsModel.Fallback();
+    var canWrite = ViewData["CanWrite"] as bool? ?? false;
+    var t = Model.Trip;
+
+    ViewData["Title"] = $"Viaje {t.Folio}";
+    ViewData["Subtitle"] = $"{t.Origin} a {t.Destination} · {t.DriverName} · {t.VehicleLabel}";
+}
+
+@section TopbarActions {
+    <span class="tag tag--@Display.TripStatusTone(t.Status)">@Display.TripStatusLabel(t.Status)</span>
+    @if (canWrite && t.Status == TripStatus.Planned)
+    {
+        <a class="btn" asp-action="Edit" asp-route-id="@t.Id">Editar</a>
+    }
+    <a class="btn" asp-action="Index">Volver a viajes</a>
+}
+
+@* --- Números del viaje ---------------------------------------------------- *@
+<div class="grid grid--kpi">
+    <div class="metric">
+        <div class="metric__label">Distancia</div>
+        <div class="metric__value">@((t.ActualDistance > 0 ? t.ActualDistance : t.PlannedDistance).ToString("N0"))</div>
+        <div class="metric__note">
+            @Display.DistanceUnitLabel(s) ·
+            @(t.ActualDistance > 0 ? $"real, planeada {t.PlannedDistance:N0}" : "planeada")
+        </div>
+    </div>
+    <div class="metric">
+        <div class="metric__label">Combustible</div>
+        <div class="metric__value">@(t.FuelConsumed?.ToString("N0") ?? "—")</div>
+        <div class="metric__note">
+            Salió con @Display.Volume(t.InitialFuel, s)@(t.FuelPurchased > 0 ? $", cargó {Display.Volume(t.FuelPurchased, s)}" : "")
+        </div>
+    </div>
+    <div class="metric @(t.FuelEfficiency is not null && t.FuelEfficiency < s.MinAcceptableFuelEfficiency ? "metric--warn" : null)">
+        <div class="metric__label">Rendimiento</div>
+        <div class="metric__value">@(t.FuelEfficiency?.ToString("N2") ?? "—")</div>
+        <div class="metric__note">
+            @Display.DistanceUnitLabel(s)/@Display.VolumeUnitLabel(s) · mínimo aceptable @s.MinAcceptableFuelEfficiency.ToString("N1")
+        </div>
+    </div>
+    <div class="metric">
+        <div class="metric__label">Costo del viaje</div>
+        <div class="metric__value">@Display.MoneyShort(t.TotalCost, s)</div>
+        <div class="metric__note">
+            Combustible @Display.MoneyShort(t.FuelCost, s) · gastos @Display.MoneyShort(t.OtherExpensesCost, s) · operador @Display.MoneyShort(t.DriverPayAmount, s)
+        </div>
+    </div>
+    <div class="metric @(t.Profit >= 0 ? "metric--good" : "metric--bad")">
+        <div class="metric__label">Utilidad</div>
+        <div class="metric__value">@Display.MoneyShort(t.Profit, s)</div>
+        <div class="metric__note">Flete @Display.Money(t.FreightRevenue, s) · margen @Display.Percent(t.ProfitMargin)</div>
+    </div>
+</div>
+
+<div class="grid grid--halves mt-16">
+    @* --- Ficha del viaje ------------------------------------------------- *@
+    <section class="panel mb-0">
+        <div class="panel__head"><h2>Ficha del viaje</h2></div>
+        <div class="panel__body">
+            <dl class="kv">
+                <dt>Cliente</dt><dd>@(t.CustomerName ?? "Sin asignar")</dd>
+                <dt>Remolque</dt><dd>@(t.TrailerLabel ?? "Sin remolque")</dd>
+                <dt>Carga</dt><dd>@Display.Weight(t.CargoWeight, t.CargoWeightUnit) @(string.IsNullOrWhiteSpace(t.CargoDescription) ? "" : $"· {t.CargoDescription}")</dd>
+                <dt>Carga en ruta</dt><dd>@(t.RefuelPlanned ? "Sí, tiene programado cargar combustible" : "No")</dd>
+                <dt>Salida programada</dt><dd class="num">@Display.DateTimeLabel(t.ScheduledDepartureUtc, s)</dd>
+                <dt>Salida real</dt><dd class="num">@Display.DateTimeLabel(t.ActualDepartureUtc, s)</dd>
+                <dt>Llegada programada</dt><dd class="num">@Display.DateTimeLabel(t.ScheduledArrivalUtc, s)</dd>
+                <dt>Llegada real</dt>
+                <dd class="num">
+                    @Display.DateTimeLabel(t.ActualArrivalUtc, s)
+                    @if (t.IsLate) { <span class="tag tag--late">Tarde</span> }
+                </dd>
+                <dt>Odómetro</dt>
+                <dd class="num">@(t.OdometerStart?.ToString("N0") ?? "—") → @(t.OdometerEnd?.ToString("N0") ?? "—")</dd>
+                <dt>Pago al operador</dt>
+                <dd>@Display.PaySchemeLabel(t.DriverPayScheme) · @Display.PayRateLabel(t.DriverPayScheme, t.DriverPayRate, s)
+                    @if (t.DriverHours is not null) { <span class="muted">(@t.DriverHours.Value.ToString("N1") h)</span> }
+                </dd>
+                @foreach (var (key, value) in t.CustomFields)
+                {
+                    <dt>@key</dt><dd>@value</dd>
+                }
+            </dl>
+
+            @if (!string.IsNullOrWhiteSpace(t.Notes))
+            {
+                <div class="notice notice--info mt-16 mb-0">@t.Notes</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(t.CancellationReason))
+            {
+                <div class="notice notice--bad mt-16 mb-0"><strong>Cancelado.</strong> @t.CancellationReason</div>
+            }
+        </div>
+    </section>
+
+    @* --- Acciones según el estado ------------------------------------------
+       La pantalla ofrece solo la acción que toca: despachar si está planeado,
+       cerrar si está en ruta. Nada de botones que van a fallar. -------------- *@
+    <section class="panel mb-0">
+        <div class="panel__head">
+            <h2>
+                @(t.Status switch
+                {
+                    TripStatus.Planned => "Registrar salida",
+                    TripStatus.InProgress => "Registrar llegada",
+                    TripStatus.Completed => "Viaje concluido",
+                    _ => "Viaje cancelado"
+                })
+            </h2>
+        </div>
+        <div class="panel__body">
+            @if (!canWrite)
+            {
+                <p class="muted mb-0">Su perfil es de consulta. Pida a un despachador que registre los movimientos.</p>
+            }
+            else if (t.Status == TripStatus.Planned)
+            {
+                <form asp-action="Dispatch" asp-route-id="@t.Id" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="grid grid--form">
+                        <div class="field">
+                            <label for="DepartureAt">Hora de salida</label>
+                            <input id="DepartureAt" name="DepartureAt" type="datetime-local"
+                                   value="@Model.Dispatch.DepartureAt.ToString("yyyy-MM-ddTHH:mm")" required />
+                        </div>
+                        <div class="field">
+                            <label for="OdometerStart">Odómetro de salida</label>
+                            <input id="OdometerStart" name="OdometerStart" type="number" step="0.01" min="0"
+                                   value="@Model.Dispatch.OdometerStart" required />
+                            <span class="field__hint">Actualiza el odómetro de la unidad.</span>
+                        </div>
+                        <div class="field">
+                            <label for="InitialFuel">Combustible al salir</label>
+                            <input id="InitialFuel" name="InitialFuel" type="number" step="0.01" min="0"
+                                   value="@Model.Dispatch.InitialFuel" />
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn--primary">Despachar</button>
+                        <span class="field__hint">La unidad y el operador quedarán ocupados.</span>
+                    </div>
+                </form>
+            }
+            else if (t.Status == TripStatus.InProgress)
+            {
+                <form asp-action="Complete" asp-route-id="@t.Id" method="post">
+                    @Html.AntiForgeryToken()
+                    <div class="grid grid--form">
+                        <div class="field">
+                            <label for="ArrivalAt">Hora de llegada</label>
+                            <input id="ArrivalAt" name="ArrivalAt" type="datetime-local"
+                                   value="@Model.Complete.ArrivalAt.ToString("yyyy-MM-ddTHH:mm")" required />
+                        </div>
+                        <div class="field">
+                            <label for="OdometerEnd">Odómetro de llegada</label>
+                            <input id="OdometerEnd" name="OdometerEnd" type="number" step="0.01"
+                                   min="@(t.OdometerStart ?? 0)" value="@Model.Complete.OdometerEnd" required />
+                        </div>
+                        <div class="field">
+                            <label for="FinalFuel">Combustible al llegar</label>
+                            <input id="FinalFuel" name="FinalFuel" type="number" step="0.01" min="0" />
+                            <span class="field__hint">Permite calcular el rendimiento del viaje.</span>
+                        </div>
+                        <div class="field">
+                            <label for="DriverHours">Horas del operador</label>
+                            <input id="DriverHours" name="DriverHours" type="number" step="0.25" min="0" />
+                            <span class="field__hint">Si lo deja vacío se toman las horas entre salida y llegada.</span>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn--primary">Cerrar viaje</button>
+                    </div>
+                </form>
+            }
+            else
+            {
+                <p class="muted">
+                    Este viaje ya no admite movimientos.
+                    @if (t.Status == TripStatus.Completed)
+                    {
+                        <text>Cerró el @Display.DateTimeLabel(t.ActualArrivalUtc, s).</text>
+                    }
+                </p>
+            }
+
+            @if (canWrite && t.Status is TripStatus.Planned or TripStatus.InProgress)
+            {
+                <form asp-action="Cancel" asp-route-id="@t.Id" method="post" class="mt-16">
+                    @Html.AntiForgeryToken()
+                    <div class="field">
+                        <label for="reason">Cancelar el viaje</label>
+                        <input id="reason" name="reason" type="text" placeholder="Motivo de la cancelación" required />
+                    </div>
+                    <button type="submit" class="btn btn--danger"
+                            data-confirm="¿Cancelar el viaje @t.Folio? La unidad y el operador quedarán libres.">
+                        Cancelar viaje
+                    </button>
+                </form>
+            }
+        </div>
+    </section>
+</div>
+
+@* --- Combustible y gastos del viaje --------------------------------------- *@
+<div class="grid grid--halves mt-16">
+    <section class="panel mb-0">
+        <div class="panel__head">
+            <h2>Cargas de combustible</h2>
+            <span class="panel__hint">@Display.Money(t.FuelCost, s) en total</span>
+        </div>
+        <div class="panel__body panel__body--flush">
+            @if (t.FuelLogs.Count == 0)
+            {
+                <div class="empty"><h3>Sin cargas registradas</h3></div>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead>
+                        <tr><th>Fecha</th><th>Estación</th><th class="num">Cantidad</th><th class="num">Precio</th><th class="num">Importe</th></tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var log in t.FuelLogs)
+                        {
+                            <tr>
+                                <td class="num">@Display.DateTimeLabel(log.LoadedAtUtc, s)</td>
+                                <td>@(log.Station ?? "—")</td>
+                                <td class="num">@Display.Volume(log.Quantity, s)</td>
+                                <td class="num">@Display.Money(log.PricePerUnit, s)</td>
+                                <td class="num">@Display.Money(log.TotalCost, s)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (canWrite && t.Status != TripStatus.Cancelled)
+            {
+                <div class="panel__body">
+                    <form asp-action="AddFuel" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="TripId" value="@t.Id" />
+                        <input type="hidden" name="VehicleId" value="@t.VehicleId" />
+                        <div class="grid grid--form">
+                            <div class="field">
+                                <label for="fuel-qty">Cantidad</label>
+                                <input id="fuel-qty" name="Quantity" type="number" step="0.01" min="0.01" required />
+                            </div>
+                            <div class="field">
+                                <label for="fuel-price">Precio por @Display.VolumeUnitLabel(s)</label>
+                                <input id="fuel-price" name="PricePerUnit" type="number" step="0.01" min="0"
+                                       value="@s.DefaultFuelPricePerUnit" required />
+                            </div>
+                            <div class="field">
+                                <label for="fuel-odo">Odómetro</label>
+                                <input id="fuel-odo" name="OdometerReading" type="number" step="0.01" min="0" />
+                            </div>
+                            <div class="field">
+                                <label for="fuel-station">Estación</label>
+                                <input id="fuel-station" name="Station" type="text" />
+                            </div>
+                            <div class="field">
+                                <label for="fuel-date">Fecha</label>
+                                <input id="fuel-date" name="LoadedAt" type="datetime-local"
+                                       value="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")" required />
+                            </div>
+                        </div>
+                        <button type="submit" class="btn">Registrar carga</button>
+                    </form>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="panel mb-0">
+        <div class="panel__head">
+            <h2>Gastos de ruta</h2>
+            <span class="panel__hint">@Display.Money(t.OtherExpensesCost, s) en total</span>
+        </div>
+        <div class="panel__body panel__body--flush">
+            @if (t.Expenses.Count == 0)
+            {
+                <div class="empty"><h3>Sin gastos registrados</h3></div>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead>
+                        <tr><th>Fecha</th><th>Concepto</th><th>Descripción</th><th class="num">Importe</th></tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var expense in t.Expenses)
+                        {
+                            <tr>
+                                <td class="num">@Display.DateLabel(expense.IncurredAtUtc, s)</td>
+                                <td>@expense.CategoryName</td>
+                                <td>@expense.Description</td>
+                                <td class="num">@Display.Money(expense.Amount, s)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @if (canWrite && t.Status != TripStatus.Cancelled)
+            {
+                <div class="panel__body">
+                    <form asp-action="AddExpense" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="TripId" value="@t.Id" />
+                        <div class="grid grid--form">
+                            <div class="field">
+                                <label for="exp-cat">Concepto</label>
+                                <select id="exp-cat" name="CategoryId" required>
+                                    <option value="">Seleccione…</option>
+                                    @foreach (var category in Model.ExpenseCategories)
+                                    {
+                                        <option value="@category.Id">@category.Name</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="exp-amount">Importe</label>
+                                <input id="exp-amount" name="Amount" type="number" step="0.01" min="0.01" required />
+                            </div>
+                            <div class="field">
+                                <label for="exp-desc">Descripción</label>
+                                <input id="exp-desc" name="Description" type="text" required />
+                            </div>
+                            <div class="field">
+                                <label for="exp-date">Fecha</label>
+                                <input id="exp-date" name="IncurredAt" type="datetime-local"
+                                       value="@DateTime.Now.ToString("yyyy-MM-ddTHH:mm")" required />
+                            </div>
+                        </div>
+                        <button type="submit" class="btn">Registrar gasto</button>
+                    </form>
+                </div>
+            }
+        </div>
+    </section>
+</div>

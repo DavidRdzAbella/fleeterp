@@ -1,0 +1,166 @@
+@model SettingsViewModel
+@{
+    var t = Model.Tenant;
+    var c = t.Settings;
+    ViewData["Title"] = "Parámetros de la empresa";
+    ViewData["Subtitle"] = "Todo lo que cambia entre un transportista y otro se configura aquí, sin tocar código";
+}
+
+<div class="notice notice--info">
+    <strong>Cómo se implanta en otra empresa.</strong>
+    Se da de alta la empresa, se ajustan moneda y unidades, se cargan los tipos de unidad y los conceptos
+    de gasto que ya usa, y se declaran los campos que su operación necesita. El sistema queda listo sin desarrollo.
+</div>
+
+<div class="grid grid--halves">
+    <section class="panel mb-0">
+        <div class="panel__head"><h2>Datos de la empresa</h2></div>
+        <div class="panel__body">
+            <form asp-action="SaveProfile" method="post">
+                @Html.AntiForgeryToken()
+                <div class="grid grid--form">
+                    <div class="field">
+                        <label for="name">Razón social</label>
+                        <input id="name" name="name" type="text" value="@t.Name" required />
+                    </div>
+                    <div class="field">
+                        <label for="taxId">RFC</label>
+                        <input id="taxId" name="taxId" type="text" value="@t.TaxId" />
+                    </div>
+                    <div class="field">
+                        <label for="contactEmail">Correo de contacto</label>
+                        <input id="contactEmail" name="contactEmail" type="email" value="@t.ContactEmail" />
+                    </div>
+                    <div class="field">
+                        <label for="phone">Teléfono</label>
+                        <input id="phone" name="phone" type="text" value="@t.Phone" />
+                    </div>
+                </div>
+                <div class="field">
+                    <span class="field__label">Clave de acceso</span>
+                    <p class="mb-0"><code class="num">@t.Slug</code> — es lo que capturan sus usuarios al entrar.</p>
+                </div>
+                <button type="submit" class="btn btn--primary">Guardar datos</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="panel mb-0">
+        <div class="panel__head">
+            <h2>Unidades de medida y valores por defecto</h2>
+        </div>
+        <div class="panel__body">
+            <form asp-action="SaveSettings" method="post">
+                @Html.AntiForgeryToken()
+
+                <div class="grid grid--form">
+                    <div class="field">
+                        <label for="CurrencyCode">Moneda</label>
+                        <input id="CurrencyCode" name="CurrencyCode" type="text" value="@c.CurrencyCode" maxlength="3" required />
+                    </div>
+                    <div class="field">
+                        <label for="CurrencySymbol">Símbolo</label>
+                        <input id="CurrencySymbol" name="CurrencySymbol" type="text" value="@c.CurrencySymbol" maxlength="4" required />
+                    </div>
+                    <div class="field">
+                        <label for="DistanceUnit">Distancia</label>
+                        <select id="DistanceUnit" name="DistanceUnit">
+                            <option value="@DistanceUnit.Kilometer" selected="@(c.DistanceUnit == DistanceUnit.Kilometer)">Kilómetros</option>
+                            <option value="@DistanceUnit.Mile" selected="@(c.DistanceUnit == DistanceUnit.Mile)">Millas</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="VolumeUnit">Combustible</label>
+                        <select id="VolumeUnit" name="VolumeUnit">
+                            <option value="@VolumeUnit.Liter" selected="@(c.VolumeUnit == VolumeUnit.Liter)">Litros</option>
+                            <option value="@VolumeUnit.Gallon" selected="@(c.VolumeUnit == VolumeUnit.Gallon)">Galones</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="WeightUnit">Peso</label>
+                        <select id="WeightUnit" name="WeightUnit">
+                            <option value="@WeightUnit.Kilogram" selected="@(c.WeightUnit == WeightUnit.Kilogram)">Kilogramos</option>
+                            <option value="@WeightUnit.Tonne" selected="@(c.WeightUnit == WeightUnit.Tonne)">Toneladas</option>
+                            <option value="@WeightUnit.Pound" selected="@(c.WeightUnit == WeightUnit.Pound)">Libras</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="TimeZoneId">Zona horaria</label>
+                        <select id="TimeZoneId" name="TimeZoneId" required>
+                            @foreach (var (id, label) in RegionalOptions.TimeZones(c.TimeZoneId))
+                            {
+                                <option value="@id" selected="@(c.TimeZoneId == id)">@label</option>
+                            }
+                        </select>
+                        <span class="field__hint">Con ella se convierten las horas de salida y llegada de los viajes.</span>
+                    </div>
+                    <div class="field">
+                        <label for="Locale">Formato regional</label>
+                        <select id="Locale" name="Locale" required>
+                            @foreach (var (code, label) in RegionalOptions.Locales(c.Locale))
+                            {
+                                <option value="@code" selected="@(c.Locale == code)">@label</option>
+                            }
+                        </select>
+                        <span class="field__hint">Hoy se vería: @RegionalOptions.PreviewDate(c.Locale)</span>
+                    </div>
+                    <div class="field">
+                        <label for="TripFolioPrefix">Prefijo de folio</label>
+                        <input id="TripFolioPrefix" name="TripFolioPrefix" type="text" value="@c.TripFolioPrefix" maxlength="6" required />
+                        <span class="field__hint">El folio queda como @c.TripFolioPrefix-@DateTime.Now.Year-000123.</span>
+                    </div>
+                    <div class="field">
+                        <label for="DefaultDriverPayScheme">Pago por defecto</label>
+                        <select id="DefaultDriverPayScheme" name="DefaultDriverPayScheme">
+                            @foreach (var scheme in Enum.GetValues<DriverPayScheme>())
+                            {
+                                <option value="@scheme" selected="@(c.DefaultDriverPayScheme == scheme)">@Display.PaySchemeLabel(scheme)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="DefaultDriverPayRate">Tarifa por defecto</label>
+                        <input id="DefaultDriverPayRate" name="DefaultDriverPayRate" type="number" step="0.01" min="0" value="@c.DefaultDriverPayRate" />
+                    </div>
+                    <div class="field">
+                        <label for="DefaultFuelPricePerUnit">Precio de combustible</label>
+                        <input id="DefaultFuelPricePerUnit" name="DefaultFuelPricePerUnit" type="number" step="0.01" min="0" value="@c.DefaultFuelPricePerUnit" />
+                    </div>
+                    <div class="field">
+                        <label for="MinAcceptableFuelEfficiency">Rendimiento mínimo</label>
+                        <input id="MinAcceptableFuelEfficiency" name="MinAcceptableFuelEfficiency" type="number" step="0.1" min="0" value="@c.MinAcceptableFuelEfficiency" />
+                        <span class="field__hint">Debajo de este valor el viaje se marca en el detalle.</span>
+                    </div>
+                    <div class="field">
+                        <label for="LicenseExpiryAlertDays">Aviso de licencias (días)</label>
+                        <input id="LicenseExpiryAlertDays" name="LicenseExpiryAlertDays" type="number" min="0" max="365" value="@c.LicenseExpiryAlertDays" />
+                    </div>
+                    <div class="field">
+                        <label for="BrandPrimaryColor">Color de la marca</label>
+                        <input id="BrandPrimaryColor" name="BrandPrimaryColor" type="text" value="@c.BrandPrimaryColor" />
+                        <span class="field__hint">Recolorea el portal completo. Ejemplo: #0E7C66.</span>
+                    </div>
+                </div>
+
+                <input type="hidden" name="LogoUrl" value="@c.LogoUrl" />
+                <button type="submit" class="btn btn--primary">Guardar parámetros</button>
+            </form>
+        </div>
+    </section>
+</div>
+
+<section class="panel mt-16">
+    <div class="panel__head">
+        <h2>Catálogos y campos a la medida</h2>
+        <span class="panel__hint">
+            @Model.VehicleTypes.Count tipo(s) de unidad · @Model.ExpenseCategories.Count concepto(s) de gasto · @Model.CustomFields.Count campo(s) propio(s)
+        </span>
+        <a class="btn btn--primary" asp-controller="Catalogs" asp-action="Index">Administrar catálogos</a>
+    </div>
+    <div class="panel__body">
+        <p class="mb-0">
+            Los tipos de unidad, los conceptos de gasto y los campos a la medida se dan de alta y se mantienen
+            en su propio módulo, porque no son configuración de una sola vez: se ajustan conforme cambia la operación.
+        </p>
+    </div>
+</section>

@@ -1,0 +1,29 @@
+@model (int Page, int TotalPages, int TotalCount, bool HasPrevious, bool HasNext)
+@{
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString();
+    var action = ViewContext.RouteData.Values["action"]?.ToString();
+
+    // Se conservan los filtros vigentes al cambiar de página; perderlos es uno de
+    // los tropiezos más comunes en listados largos.
+    var route = ViewContext.HttpContext.Request.Query
+        .Where(q => q.Key != "page")
+        .ToDictionary(q => q.Key, q => (string?)q.Value.ToString());
+}
+
+@if (Model.TotalCount > 0)
+{
+    <div class="pager">
+        <span>@Model.TotalCount registro(s) · página @Model.Page de @Math.Max(1, Model.TotalPages)</span>
+        <span class="pager__spacer"></span>
+        @if (Model.HasPrevious)
+        {
+            var prev = new Dictionary<string, string?>(route) { ["page"] = (Model.Page - 1).ToString() };
+            <a class="btn btn--small" asp-controller="@controller" asp-action="@action" asp-all-route-data="prev">Anterior</a>
+        }
+        @if (Model.HasNext)
+        {
+            var next = new Dictionary<string, string?>(route) { ["page"] = (Model.Page + 1).ToString() };
+            <a class="btn btn--small" asp-controller="@controller" asp-action="@action" asp-all-route-data="next">Siguiente</a>
+        }
+    </div>
+}

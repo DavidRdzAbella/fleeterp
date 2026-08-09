@@ -1,0 +1,128 @@
+@model MaintenanceWorkbench
+@{
+    var s = ViewData["Settings"] as TenantSettingsModel ?? TenantSettingsModel.Fallback();
+    ViewData["Title"] = "Mantenimiento";
+    ViewData["Subtitle"] = "Órdenes de taller de la flotilla";
+    var o = Model.Selected;
+}
+
+@section TopbarActions {
+    @if (Model.CanWrite)
+    {
+        <a class="btn btn--primary" asp-action="Index" asp-route-id="" asp-route-mode="new" asp-route-search="@Model.List.Search">+ Nueva orden</a>
+    }
+}
+
+<div class="wb">
+    <partial name="_WorkbenchList" model="Model.List" />
+
+    <section class="wb__detail">
+        @if (Model.Mode == WorkbenchMode.Empty)
+        {
+            <div class="wb__placeholder">
+                <h3>Seleccione una orden</h3>
+                <p>Abrir una orden manda la unidad a taller; cerrarla la devuelve a disponible si no le quedan órdenes abiertas.</p>
+                @if (Model.CanWrite)
+                {
+                    <a class="btn btn--primary" asp-action="Index" asp-route-id="" asp-route-mode="new">+ Nueva orden</a>
+                }
+            </div>
+        }
+        else if (Model.Mode == WorkbenchMode.View && o is not null)
+        {
+            <div class="wb__detail-head">
+                <div class="wb__detail-title">
+                    <h2>@o.Folio</h2>
+                    <p>@o.VehicleLabel · @Display.MaintenanceKindLabel(o.Kind)</p>
+                </div>
+                <span class="tag tag--@(o.Status switch { MaintenanceStatus.Open => "late", MaintenanceStatus.InProgress => "active", _ => "done" })">
+                    @Display.MaintenanceStatusLabel(o.Status)
+                </span>
+            </div>
+
+            <div class="wb__body">
+                <div class="wb__section">
+                    <h3>Servicio</h3>
+                    <div class="wb__facts">
+                        <div class="wb__fact"><dt>Unidad</dt><dd class="num">@o.VehicleLabel</dd></div>
+                        <div class="wb__fact"><dt>Tipo</dt><dd>@Display.MaintenanceKindLabel(o.Kind)</dd></div>
+                        <div class="wb__fact"><dt>Abierta</dt><dd class="num">@Display.DateTimeLabel(o.OpenedAtUtc, s)</dd></div>
+                        <div class="wb__fact"><dt>Cerrada</dt><dd class="num">@Display.DateTimeLabel(o.ClosedAtUtc, s)</dd></div>
+                        <div class="wb__fact"><dt>Taller</dt><dd>@o.Workshop.Or()</dd></div>
+                        <div class="wb__fact"><dt>Costo</dt><dd class="num">@Display.Money(o.Cost, s)</dd></div>
+                        <div class="wb__fact">
+                            <dt>Odómetro al servicio</dt>
+                            <dd class="num">@(o.OdometerAtService is null ? Display.Missing : Display.Distance(o.OdometerAtService.Value, s))</dd>
+                        </div>
+                    </div>
+                    <p class="mt-16 mb-0">@o.Description</p>
+                </div>
+
+                @if (Model.CanWrite && o.Status != MaintenanceStatus.Closed)
+                {
+                    @if (o.Status == MaintenanceStatus.Open)
+                    {
+                        <div class="wb__section">
+                            <h3>Iniciar el servicio</h3>
+                            <form asp-action="Start" asp-route-id="@o.Id" asp-route-search="@Model.List.Search" method="post">
+                                @Html.AntiForgeryToken()
+                                <button type="submit" class="btn">Marcar en proceso</button>
+                                <span class="field__hint">Solo cambia el estado de la orden; la unidad ya está en taller.</span>
+                            </form>
+                        </div>
+                    }
+
+                    <div class="wb__section">
+                        <h3>Cerrar la orden</h3>
+                        <form asp-action="Close" asp-route-id="@o.Id" asp-route-search="@Model.List.Search" method="post">
+                            @Html.AntiForgeryToken()
+                            <div class="grid grid--form">
+                                <div class="field">
+                                    <label for="ClosedAt">Fecha de cierre</label>
+                                    <input id="ClosedAt" name="ClosedAt" type="datetime-local"
+                                           value="@Model.Close.ClosedAt.ToString("yyyy-MM-ddTHH:mm")" required />
+                                </div>
+                                <div class="field">
+                                    <label for="Cost">Costo del servicio</label>
+                                    <input id="Cost" name="Cost" type="number" step="0.01" min="0" value="0" required />
+                                </div>
+                                <div class="field">
+                                    <label for="Workshop">Taller</label>
+                                    <input id="Workshop" name="Workshop" type="text" />
+                                </div>
+                                <div class="field">
+                                    <label for="OdometerAtService">Odómetro al servicio</label>
+                                    <input id="OdometerAtService" name="OdometerAtService" type="number" step="0.01" min="0" />
+                                    <span class="field__hint">Si lo captura, actualiza el odómetro de la unidad.</span>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn--primary">Cerrar orden</button>
+                        </form>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="wb__detail-head">
+                <div class="wb__detail-title">
+                    <h2>Nueva orden de taller</h2>
+                    <p>El folio se asigna solo al guardar</p>
+                </div>
+                <partial name="_WorkbenchToolbar" model="@(new WorkbenchToolbar {
+                    Mode = Model.Mode, SelectedId = null, CanWrite = Model.CanWrite,
+                    Filters = Model.List.Filters })" />
+            </div>
+
+            <div class="wb__body">
+                <partial name="_ValidationSummary" />
+                @{ ViewData["Search"] = Model.List.Search; }
+                <partial name="_Form" model="Model.Form" />
+            </div>
+        }
+    </section>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -1,0 +1,72 @@
+@model LoginForm
+@{
+    ViewData["Title"] = "Acceso";
+    Layout = "_LoginLayout";
+}
+
+<div class="login">
+    <aside class="login__aside">
+        <span class="login__mark">FleetERP</span>
+        <p class="login__claim">Control de flotilla para transportistas: unidades, operadores, viajes y el resultado de cada kilómetro.</p>
+        <ul class="login__points">
+            <li>Inventario de tractocamiones, cajas y remolques</li>
+            <li>Viaje completo: salida, llegada, combustible y carga</li>
+            <li>Desempeño por conductor y ranking de la flotilla</li>
+            <li>Gasto de combustible, nómina de operadores y utilidad</li>
+        </ul>
+    </aside>
+
+    <div class="login__panel">
+        <div class="login__card">
+            <h1>Entrar</h1>
+            <p class="login__lede">Use la clave de su empresa y sus credenciales.</p>
+
+            <form asp-action="Login" asp-route-returnUrl="@ViewData["ReturnUrl"]" method="post" class="stack">
+                @Html.AntiForgeryToken()
+
+                @if (!ViewData.ModelState.IsValid && ViewData.ModelState[string.Empty]?.Errors.Count > 0)
+                {
+                    <div class="notice notice--bad" role="alert">
+                        @foreach (var error in ViewData.ModelState[string.Empty]!.Errors)
+                        {
+                            <div>@error.ErrorMessage</div>
+                        }
+                    </div>
+                }
+
+                <div class="field">
+                    <label asp-for="TenantSlug"></label>
+                    <input asp-for="TenantSlug" autocomplete="organization" autofocus />
+                    <span asp-validation-for="TenantSlug" class="field-error"></span>
+                </div>
+
+                <div class="field">
+                    <label asp-for="Email"></label>
+                    <input asp-for="Email" type="email" autocomplete="username" placeholder="usuario@@empresa.com" />
+                    <span asp-validation-for="Email" class="field-error"></span>
+                </div>
+
+                <div class="field">
+                    <label asp-for="Password"></label>
+                    <input asp-for="Password" type="password" autocomplete="current-password" />
+                    <span asp-validation-for="Password" class="field-error"></span>
+                </div>
+
+                <div class="field--check">
+                    <input asp-for="RememberMe" type="checkbox" />
+                    <label asp-for="RememberMe"></label>
+                </div>
+
+                <button type="submit" class="btn btn--primary">Entrar</button>
+            </form>
+
+            <div class="login__demo">
+                Datos de demostración — empresa <code>demo</code>, usuario <code>admin@@demo.com</code>, contraseña <code>Demo123$</code>.
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

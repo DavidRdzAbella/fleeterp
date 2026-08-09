@@ -1,0 +1,103 @@
+@model ExpensesWorkbench
+@{
+    var s = ViewData["Settings"] as TenantSettingsModel ?? TenantSettingsModel.Fallback();
+    ViewData["Title"] = "Gastos";
+    ViewData["Subtitle"] = "Casetas, viáticos, maniobras y todo lo que no es combustible";
+    var e = Model.Selected;
+}
+
+@section TopbarActions {
+    <a class="btn" asp-controller="Finance" asp-action="Index">Ver resumen</a>
+    @if (Model.CanWrite)
+    {
+        <a class="btn btn--primary" asp-action="Index" asp-route-id="" asp-route-mode="new" asp-route-search="@Model.List.Search">+ Nuevo gasto</a>
+    }
+}
+
+<div class="wb">
+    <partial name="_WorkbenchList" model="Model.List" />
+
+    <section class="wb__detail">
+        @if (Model.Mode == WorkbenchMode.Empty)
+        {
+            <div class="wb__placeholder">
+                <h3>Seleccione un gasto</h3>
+                <p>Los gastos amarrados a un viaje entran a su utilidad; los de estructura solo al resumen de la empresa.</p>
+                @if (Model.CanWrite)
+                {
+                    <a class="btn btn--primary" asp-action="Index" asp-route-id="" asp-route-mode="new">+ Nuevo gasto</a>
+                }
+            </div>
+        }
+        else if (Model.Mode == WorkbenchMode.View && e is not null)
+        {
+            <div class="wb__detail-head">
+                <div class="wb__detail-title">
+                    <h2>@Display.Money(e.Amount, s)</h2>
+                    <p>@e.CategoryName · @Display.DateLabel(e.IncurredAtUtc, s)</p>
+                </div>
+                <partial name="_WorkbenchToolbar" model="@(new WorkbenchToolbar {
+                    Mode = Model.Mode, SelectedId = e.Id, CanWrite = Model.CanWrite,
+                    DeleteLabel = "Eliminar",
+                    DeleteConfirm = "¿Eliminar este gasto? Los totales del periodo se recalculan.",
+                    Filters = Model.List.Filters })" />
+            </div>
+
+            <div class="wb__body">
+                <div class="wb__section">
+                    <h3>Detalle</h3>
+                    <div class="wb__facts">
+                        <div class="wb__fact"><dt>Concepto</dt><dd>@e.CategoryName</dd></div>
+                        <div class="wb__fact"><dt>Importe</dt><dd class="num">@Display.Money(e.Amount, s)</dd></div>
+                        <div class="wb__fact"><dt>Fecha</dt><dd class="num">@Display.DateTimeLabel(e.IncurredAtUtc, s)</dd></div>
+                        <div class="wb__fact"><dt>Comprobante</dt><dd class="num">@e.ReferenceNumber.Or()</dd></div>
+                    </div>
+                    <p class="mt-16 mb-0">@e.Description</p>
+                </div>
+
+                <div class="wb__section">
+                    <h3>A qué se carga</h3>
+                    <div class="wb__facts">
+                        <div class="wb__fact">
+                            <dt>Viaje</dt>
+                            <dd>
+                                @if (e.TripId is not null)
+                                {
+                                    <a asp-controller="Trips" asp-action="Details" asp-route-id="@e.TripId" class="folio">@e.TripFolio</a>
+                                }
+                                else
+                                {
+                                    <span class="muted">Sin viaje</span>
+                                }
+                            </dd>
+                        </div>
+                        <div class="wb__fact"><dt>Unidad</dt><dd class="num">@e.VehicleLabel.Or()</dd></div>
+                        <div class="wb__fact"><dt>Conductor</dt><dd>@e.DriverName.Or()</dd></div>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="wb__detail-head">
+                <div class="wb__detail-title">
+                    <h2>@(Model.Form.IsNew ? "Nuevo gasto" : "Corregir gasto")</h2>
+                    <p>Si lo liga a un viaje, se descuenta de su utilidad</p>
+                </div>
+                <partial name="_WorkbenchToolbar" model="@(new WorkbenchToolbar {
+                    Mode = Model.Mode, SelectedId = Model.Form.Id, CanWrite = Model.CanWrite,
+                    Filters = Model.List.Filters })" />
+            </div>
+
+            <div class="wb__body">
+                <partial name="_ValidationSummary" />
+                @{ ViewData["Search"] = Model.List.Search; }
+                <partial name="_Form" model="Model.Form" />
+            </div>
+        }
+    </section>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

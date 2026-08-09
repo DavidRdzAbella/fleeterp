@@ -1,0 +1,185 @@
+@model FleetWorkbench
+@{
+    var s = ViewData["Settings"] as TenantSettingsModel ?? TenantSettingsModel.Fallback();
+    ViewData["Title"] = "Unidades";
+    ViewData["Subtitle"] = "Tractocamiones, cajas y remolques de la flotilla";
+    var v = Model.Selected;
+}
+
+@section TopbarActions {
+    @if (Model.CanWrite)
+    {
+        <a class="btn btn--primary" asp-action="Index" asp-route-id="" asp-route-mode="new" asp-route-search="@Model.List.Search">+ Nueva unidad</a>
+    }
+}
+
+<div class="wb">
+    <partial name="_WorkbenchList" model="Model.List" />
+
+    <section class="wb__detail">
+        @if (Model.Mode == WorkbenchMode.Empty)
+        {
+            <div class="wb__placeholder">
+                <h3>Seleccione una unidad</h3>
+                <p>Elija una de la lista para ver su ficha, o dé de alta la primera de su flotilla.</p>
+                @if (Model.CanWrite)
+                {
+                    <a class="btn btn--primary" asp-action="Index" asp-route-id="" asp-route-mode="new">+ Nueva unidad</a>
+                }
+            </div>
+        }
+        else if (Model.Mode == WorkbenchMode.View && v is not null)
+        {
+            <div class="wb__detail-head">
+                <div class="wb__detail-title">
+                    <h2>@v.EconomicNumber</h2>
+                    <p>@v.VehicleTypeName · @Display.CategoryLabel(v.Category) · placa @v.PlateNumber</p>
+                </div>
+                <span class="tag tag--@Display.VehicleStatusTone(v.Status)">@Display.VehicleStatusLabel(v.Status)</span>
+                @if (!v.IsActive)
+                {
+                    <span class="tag tag--void">Dada de baja</span>
+                }
+                <partial name="_WorkbenchToolbar" model="@(new WorkbenchToolbar {
+                    Mode = Model.Mode, SelectedId = v.Id, CanWrite = Model.CanWrite,
+                    DeleteLabel = v.IsActive ? "Dar de baja" : "Reactivar",
+                    DeleteConfirm = v.IsActive
+                        ? $"¿Dar de baja la unidad {v.EconomicNumber}? Dejará de aparecer al programar viajes."
+                        : $"¿Reactivar la unidad {v.EconomicNumber}?",
+                    Filters = Model.List.Filters })" />
+            </div>
+
+            <div class="wb__body">
+                <div class="wb__section">
+                    <h3>Identificación</h3>
+                    <div class="wb__facts">
+                        <div class="wb__fact"><dt>Número económico</dt><dd class="num">@v.EconomicNumber</dd></div>
+                        <div class="wb__fact"><dt>Placa</dt><dd class="num">@v.PlateNumber</dd></div>
+                        <div class="wb__fact"><dt>Tipo</dt><dd>@v.VehicleTypeName</dd></div>
+                        <div class="wb__fact"><dt>Marca y modelo</dt><dd>@($"{v.Brand} {v.Model}".Trim().Or())</dd></div>
+                        <div class="wb__fact"><dt>Año</dt><dd class="num">@(v.Year?.ToString().Or())</dd></div>
+                        <div class="wb__fact"><dt>Número de serie</dt><dd class="num">@v.Vin.Or()</dd></div>
+                    </div>
+                </div>
+
+                <div class="wb__section">
+                    <h3>Operación</h3>
+                    <div class="wb__facts">
+                        <div class="wb__fact"><dt>Odómetro</dt><dd class="num">@Display.Distance(v.CurrentOdometer, s)</dd></div>
+                        <div class="wb__fact">
+                            <dt>Capacidad de carga</dt>
+                            <dd class="num">@(v.CargoCapacity is null ? "—" : Display.Weight(v.CargoCapacity.Value, s.WeightUnit))</dd>
+                        </div>
+                        <div class="wb__fact">
+                            <dt>Capacidad del tanque</dt>
+                            <dd class="num">@(v.TankCapacity is null ? "—" : Display.Volume(v.TankCapacity.Value, s))</dd>
+                        </div>
+                        <div class="wb__fact">
+                            <dt>Vence el seguro</dt>
+                            <dd class="num">@(v.InsuranceExpiry?.ToString("dd/MM/yyyy") ?? "—")</dd>
+                        </div>
+                        <div class="wb__fact">
+                            <dt>Vence la tarjeta</dt>
+                            <dd class="num">@(v.CirculationCardExpiry?.ToString("dd/MM/yyyy") ?? "—")</dd>
+                        </div>
+                    </div>
+                </div>
+
+                @if (v.CustomFields.Count > 0)
+                {
+                    <div class="wb__section">
+                        <h3>Campos de su empresa</h3>
+                        <div class="wb__facts">
+                            @foreach (var (key, value) in v.CustomFields)
+                            {
+                                <div class="wb__fact"><dt>@key</dt><dd>@value</dd></div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (Model.CanWrite && v.IsActive)
+                {
+                    <div class="wb__section">
+                        <h3>Disponibilidad</h3>
+                        <div class="row-actions">
+                            @if (v.Status == VehicleStatus.Available)
+                            {
+                                <form asp-action="ChangeStatus" asp-route-id="@v.Id" asp-route-search="@Model.List.Search" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="status" value="@VehicleStatus.InMaintenance" />
+                                    <button type="submit" class="btn btn--small">Mandar a taller</button>
+                                </form>
+                                <form asp-action="ChangeStatus" asp-route-id="@v.Id" asp-route-search="@Model.List.Search" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="status" value="@VehicleStatus.OutOfService" />
+                                    <button type="submit" class="btn btn--small">Marcar fuera de servicio</button>
+                                </form>
+                            }
+                            else if (v.Status is VehicleStatus.InMaintenance or VehicleStatus.OutOfService)
+                            {
+                                <form asp-action="ChangeStatus" asp-route-id="@v.Id" asp-route-search="@Model.List.Search" method="post">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="status" value="@VehicleStatus.Available" />
+                                    <button type="submit" class="btn btn--small btn--primary">Regresar a disponible</button>
+                                </form>
+                            }
+                            else
+                            {
+                                <p class="muted mb-0">La unidad está en viaje. Se libera al cerrar o cancelar el viaje.</p>
+                            }
+                        </div>
+                    </div>
+                }
+
+                @if (Model.RecentOrders.Count > 0)
+                {
+                    <div class="wb__section">
+                        <h3>Últimas órdenes de taller</h3>
+                        <div class="table-wrap">
+                            <table class="data">
+                                <thead><tr><th>Folio</th><th>Tipo</th><th>Abierta</th><th>Estado</th><th class="num">Costo</th></tr></thead>
+                                <tbody>
+                                @foreach (var order in Model.RecentOrders)
+                                {
+                                    <tr>
+                                        <td class="folio">
+                                            <a asp-controller="Maintenance" asp-action="Index" asp-route-id="@order.Id">@order.Folio</a>
+                                        </td>
+                                        <td>@Display.MaintenanceKindLabel(order.Kind)</td>
+                                        <td class="num">@Display.DateLabel(order.OpenedAtUtc, s)</td>
+                                        <td>@Display.MaintenanceStatusLabel(order.Status)</td>
+                                        <td class="num">@Display.Money(order.Cost, s)</td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="wb__detail-head">
+                <div class="wb__detail-title">
+                    <h2>@(Model.Form.IsNew ? "Nueva unidad" : $"Editar {Model.Form.EconomicNumber}")</h2>
+                    <p>El tipo define si la unidad es motriz o de arrastre</p>
+                </div>
+                <partial name="_WorkbenchToolbar" model="@(new WorkbenchToolbar {
+                    Mode = Model.Mode, SelectedId = Model.Form.Id, CanWrite = Model.CanWrite,
+                    Filters = Model.List.Filters })" />
+            </div>
+
+            <div class="wb__body">
+                <partial name="_ValidationSummary" />
+                @{ ViewData["Search"] = Model.List.Search; }
+                <partial name="_Form" model="Model.Form" />
+            </div>
+        }
+    </section>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

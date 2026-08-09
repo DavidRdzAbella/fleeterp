@@ -1,0 +1,96 @@
+@model VehicleFormViewModel
+@{
+    var s = ViewData["Settings"] as TenantSettingsModel ?? TenantSettingsModel.Fallback();
+    var search = ViewData["Search"] as string;
+}
+@*
+    El formulario vive en su propio partial para que los nombres de los campos
+    salgan sin prefijo y coincidan con lo que el controlador enlaza y con las
+    claves de error que devuelve la API.
+*@
+<form id="detail-form" asp-action="Save" asp-route-search="@search" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+
+    <div class="wb__section">
+        <h3>Identificación</h3>
+        <div class="grid grid--form">
+            <div class="field">
+                <label asp-for="EconomicNumber"></label>
+                <input asp-for="EconomicNumber" placeholder="T-101" autofocus />
+                <span asp-validation-for="EconomicNumber" class="field-error"></span>
+            </div>
+            <div class="field">
+                <label asp-for="PlateNumber"></label>
+                <input asp-for="PlateNumber" placeholder="AB-123-CD" />
+                <span asp-validation-for="PlateNumber" class="field-error"></span>
+            </div>
+            <div class="field">
+                <label asp-for="VehicleTypeId"></label>
+                <select asp-for="VehicleTypeId">
+                    <option value="">Seleccione…</option>
+                    @foreach (var type in Model.TypeOptions)
+                    {
+                        <option value="@type.Id" selected="@(Model.VehicleTypeId == type.Id)">
+                            @type.Name — @Display.CategoryLabel(type.Category)
+                        </option>
+                    }
+                </select>
+                <span asp-validation-for="VehicleTypeId" class="field-error"></span>
+            </div>
+            <div class="field">
+                <label asp-for="Brand"></label>
+                <input asp-for="Brand" placeholder="Kenworth" />
+            </div>
+            <div class="field">
+                <label asp-for="Model"></label>
+                <input asp-for="Model" placeholder="T680" />
+            </div>
+            <div class="field">
+                <label asp-for="Year"></label>
+                <input asp-for="Year" type="number" min="1950" max="2100" />
+                <span asp-validation-for="Year" class="field-error"></span>
+            </div>
+            <div class="field">
+                <label asp-for="Vin"></label>
+                <input asp-for="Vin" />
+            </div>
+        </div>
+    </div>
+
+    <div class="wb__section">
+        <h3>Capacidades y vigencias</h3>
+        <div class="grid grid--form">
+            <div class="field">
+                <label asp-for="CargoCapacity"></label>
+                <input asp-for="CargoCapacity" type="number" step="0.01" min="0" />
+                <span class="field__hint">En @(s.WeightUnit == WeightUnit.Tonne ? "toneladas" : "kilogramos").</span>
+            </div>
+            <div class="field">
+                <label asp-for="TankCapacity"></label>
+                <input asp-for="TankCapacity" type="number" step="0.01" min="0" />
+                <span class="field__hint">En @Display.VolumeUnitLabel(s). Déjelo vacío en cajas y remolques.</span>
+            </div>
+            <div class="field">
+                <label asp-for="InitialOdometer"></label>
+                <input asp-for="InitialOdometer" type="number" step="0.01" min="0" readonly="@(!Model.IsNew)" />
+                <span class="field__hint">
+                    @(Model.IsNew
+                        ? "Lectura con la que la unidad entra al sistema."
+                        : "Solo avanza al despachar y cerrar viajes.")
+                </span>
+            </div>
+            <div class="field">
+                <label asp-for="InsuranceExpiry"></label>
+                <input asp-for="InsuranceExpiry" type="date" />
+                <span class="field__hint">El tablero avisa 30 días antes.</span>
+            </div>
+            <div class="field">
+                <label asp-for="CirculationCardExpiry"></label>
+                <input asp-for="CirculationCardExpiry" type="date" />
+            </div>
+        </div>
+    </div>
+
+    <partial name="_CustomFields" model="@((Model.CustomFieldDefinitions, Model.CustomFields))" />
+</form>

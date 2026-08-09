@@ -1,0 +1,86 @@
+@model DriverFormViewModel
+@{
+    var s = ViewData["Settings"] as TenantSettingsModel ?? TenantSettingsModel.Fallback();
+    var search = ViewData["Search"] as string;
+}
+
+<form id="detail-form" asp-action="Save" asp-route-search="@search" method="post">
+    @Html.AntiForgeryToken()
+    <input type="hidden" asp-for="Id" />
+
+    <div class="wb__section">
+        <h3>Datos del operador</h3>
+        <div class="grid grid--form">
+            <div class="field">
+                <label asp-for="FirstName"></label>
+                <input asp-for="FirstName" autofocus />
+                <span asp-validation-for="FirstName" class="field-error"></span>
+            </div>
+            <div class="field">
+                <label asp-for="LastName"></label>
+                <input asp-for="LastName" />
+                <span asp-validation-for="LastName" class="field-error"></span>
+            </div>
+            <div class="field">
+                <label asp-for="EmployeeNumber"></label>
+                <input asp-for="EmployeeNumber" placeholder="OP-001" />
+            </div>
+            <div class="field">
+                <label asp-for="HireDate"></label>
+                <input asp-for="HireDate" type="date" />
+            </div>
+            <div class="field">
+                <label asp-for="Phone"></label>
+                <input asp-for="Phone" />
+            </div>
+            <div class="field">
+                <label asp-for="Email"></label>
+                <input asp-for="Email" type="email" />
+                <span asp-validation-for="Email" class="field-error"></span>
+            </div>
+        </div>
+    </div>
+
+    <div class="wb__section">
+        <h3>Licencia</h3>
+        <div class="grid grid--form">
+            <div class="field">
+                <label asp-for="LicenseNumber"></label>
+                <input asp-for="LicenseNumber" />
+                <span asp-validation-for="LicenseNumber" class="field-error"></span>
+            </div>
+            <div class="field">
+                <label asp-for="LicenseType"></label>
+                <input asp-for="LicenseType" placeholder="Federal Tipo E" />
+            </div>
+            <div class="field">
+                <label asp-for="LicenseExpiry"></label>
+                <input asp-for="LicenseExpiry" type="date" />
+                <span class="field__hint">El tablero avisa @s.LicenseExpiryAlertDays días antes.</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="wb__section">
+        <h3>Esquema de pago</h3>
+        <div class="grid grid--form">
+            <div class="field">
+                <label asp-for="PayScheme"></label>
+                <select asp-for="PayScheme">
+                    @foreach (var scheme in Enum.GetValues<DriverPayScheme>())
+                    {
+                        <option value="@scheme" selected="@(Model.PayScheme == scheme)">@Display.PaySchemeLabel(scheme)</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label asp-for="PayRate"></label>
+                <input asp-for="PayRate" type="number" step="0.01" min="0" />
+                <span class="field__hint">Importe por hora o distancia, monto fijo por viaje, o porcentaje del flete.</span>
+                <span asp-validation-for="PayRate" class="field-error"></span>
+            </div>
+        </div>
+    </div>
+
+    <partial name="_CustomFields" model="@((Model.CustomFieldDefinitions, Model.CustomFields))" />
+</form>

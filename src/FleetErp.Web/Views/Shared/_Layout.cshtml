@@ -1,0 +1,101 @@
+@{
+    var settings = ViewData["Settings"] as TenantSettingsModel ?? TenantSettingsModel.Fallback();
+    var tenantName = ViewData["TenantName"] as string ?? "Mi empresa";
+    var userName = ViewData["UserName"] as string ?? "Usuario";
+    var canWrite = ViewData["CanWrite"] as bool? ?? false;
+    var isAdmin = ViewData["IsAdministrator"] as bool? ?? false;
+    var controller = ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty;
+
+    string Active(string name) => string.Equals(controller, name, StringComparison.OrdinalIgnoreCase) ? "rail__link is-active" : "rail__link";
+}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] · FleetERP</title>
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @* El color primario sale de la parametrización de la empresa: implantar en
+       otro cliente recolorea el portal completo sin tocar la hoja de estilos. *@
+    <style>:root { --brand: @settings.BrandPrimaryColor; }</style>
+</head>
+<body data-currency="@settings.CurrencySymbol">
+<div class="shell">
+    <aside class="rail">
+        <div class="rail__brand">
+            <div>
+                <span class="rail__mark">FleetERP</span>
+                <span class="rail__tenant">@tenantName</span>
+            </div>
+            <button type="button" class="rail__toggle" data-rail-toggle aria-expanded="false" aria-label="Mostrar u ocultar el menú">Menú</button>
+        </div>
+
+        <nav class="rail__nav" data-rail-nav>
+            <div class="rail__group">Operación</div>
+            <a class="@Active("Dashboard")" asp-controller="Dashboard" asp-action="Index">Tablero de flotilla</a>
+            <a class="@Active("Trips")" asp-controller="Trips" asp-action="Index">Viajes</a>
+            <a class="@Active("Maintenance")" asp-controller="Maintenance" asp-action="Index">Mantenimiento</a>
+
+            <div class="rail__group">Padrones</div>
+            <a class="@Active("Fleet")" asp-controller="Fleet" asp-action="Index">Unidades</a>
+            <a class="@Active("Drivers")" asp-controller="Drivers" asp-action="Index">Conductores</a>
+            <a class="@Active("Customers")" asp-controller="Customers" asp-action="Index">Clientes</a>
+
+            <div class="rail__group">Costos</div>
+            <a class="@Active("Fuel")" asp-controller="Fuel" asp-action="Index">Combustible</a>
+            <a class="@Active("Expenses")" asp-controller="Expenses" asp-action="Index">Gastos</a>
+            <a class="@Active("Finance")" asp-controller="Finance" asp-action="Index">Gastos y ganancias</a>
+
+            @if (isAdmin)
+            {
+                <div class="rail__group">Configuración</div>
+                <a class="@Active("Catalogs")" asp-controller="Catalogs" asp-action="Index">Catálogos</a>
+                <a class="@Active("Users")" asp-controller="Users" asp-action="Index">Usuarios</a>
+                <a class="@Active("Settings")" asp-controller="Settings" asp-action="Index">Parámetros de la empresa</a>
+            }
+        </nav>
+
+        <div class="rail__foot">
+            <div>
+                <span class="rail__user">@userName</span>
+                <span class="rail__role">@(isAdmin ? "Administrador" : canWrite ? "Despachador" : "Consulta")</span>
+            </div>
+            <form asp-controller="Account" asp-action="Logout" method="post">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="rail__signout">Cerrar sesión</button>
+            </form>
+        </div>
+    </aside>
+
+    <div class="main">
+        <header class="topbar">
+            <div class="topbar__title">
+                <h1>@ViewData["Title"]</h1>
+                @if (ViewData["Subtitle"] is string subtitle)
+                {
+                    <div class="topbar__sub">@subtitle</div>
+                }
+            </div>
+            @await RenderSectionAsync("TopbarActions", required: false)
+        </header>
+
+        <main class="content">
+            @if (TempData["Notice"] is string notice)
+            {
+                <div class="notice notice--ok" role="status">@notice</div>
+            }
+            @if (TempData["Warning"] is string warning)
+            {
+                <div class="notice notice--warn" role="alert">@warning</div>
+            }
+
+            @RenderBody()
+        </main>
+    </div>
+</div>
+
+<script src="~/lib/chartjs/chart.umd.min.js" asp-append-version="true"></script>
+<script src="~/js/app.js" asp-append-version="true"></script>
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

@@ -1,0 +1,17 @@
+@model string
+@*
+    Pinta el error de un campo concreto a partir de su clave en el ModelState.
+    Hace falta donde el formulario usa <input name="..."> en lugar de asp-for,
+    porque ahí no hay expresión de modelo y asp-validation-for no aplica: sin
+    esto el rechazo del servidor llegaría sin decirle nada al usuario.
+*@
+@{
+    var errors = ViewData.ModelState.TryGetValue(Model, out var entry)
+        ? entry.Errors.Select(e => e.ErrorMessage).ToList()
+        : [];
+}
+
+@foreach (var message in errors)
+{
+    <span class="field-error">@message</span>
+}

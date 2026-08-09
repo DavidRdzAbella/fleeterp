@@ -1,0 +1,106 @@
+@model FuelWorkbench
+@{
+    var s = ViewData["Settings"] as TenantSettingsModel ?? TenantSettingsModel.Fallback();
+    ViewData["Title"] = "Combustible";
+    ViewData["Subtitle"] = "Cargas de diésel: de aquí sale el gasto y el rendimiento de cada unidad";
+    var f = Model.Selected;
+}
+
+@section TopbarActions {
+    @if (Model.CanWrite)
+    {
+        <a class="btn btn--primary" asp-action="Index" asp-route-id="" asp-route-mode="new" asp-route-search="@Model.List.Search">+ Nueva carga</a>
+    }
+}
+
+<div class="wb">
+    <partial name="_WorkbenchList" model="Model.List" />
+
+    <section class="wb__detail">
+        @if (Model.Mode == WorkbenchMode.Empty)
+        {
+            <div class="wb__placeholder">
+                <h3>Seleccione una carga</h3>
+                <p>El combustible se lleva aparte de los demás gastos porque de sus litros sale el rendimiento de la flotilla.</p>
+                @if (Model.CanWrite)
+                {
+                    <a class="btn btn--primary" asp-action="Index" asp-route-id="" asp-route-mode="new">+ Nueva carga</a>
+                }
+            </div>
+        }
+        else if (Model.Mode == WorkbenchMode.View && f is not null)
+        {
+            <div class="wb__detail-head">
+                <div class="wb__detail-title">
+                    <h2>@Display.Volume(f.Quantity, s) · @f.VehicleLabel</h2>
+                    <p>@Display.DateTimeLabel(f.LoadedAtUtc, s) · @f.Station.Or("sin estación registrada")</p>
+                </div>
+                <partial name="_WorkbenchToolbar" model="@(new WorkbenchToolbar {
+                    Mode = Model.Mode, SelectedId = f.Id, CanWrite = Model.CanWrite,
+                    DeleteLabel = "Eliminar",
+                    DeleteConfirm = "¿Eliminar esta carga? El gasto y el rendimiento se recalculan.",
+                    Filters = Model.List.Filters })" />
+            </div>
+
+            <div class="wb__body">
+                <div class="wb__section">
+                    <h3>Detalle</h3>
+                    <div class="wb__facts">
+                        <div class="wb__fact"><dt>Unidad</dt><dd class="num">@f.VehicleLabel</dd></div>
+                        <div class="wb__fact"><dt>Cantidad</dt><dd class="num">@Display.Volume(f.Quantity, s)</dd></div>
+                        <div class="wb__fact"><dt>Precio por @Display.VolumeUnitLabel(s)</dt><dd class="num">@Display.Money(f.PricePerUnit, s)</dd></div>
+                        <div class="wb__fact"><dt>Importe</dt><dd class="num">@Display.Money(f.TotalCost, s)</dd></div>
+                        <div class="wb__fact">
+                            <dt>Odómetro</dt>
+                            <dd class="num">@(f.OdometerReading is null ? Display.Missing : Display.Distance(f.OdometerReading.Value, s))</dd>
+                        </div>
+                        <div class="wb__fact"><dt>Estación</dt><dd>@f.Station.Or()</dd></div>
+                        <div class="wb__fact"><dt>Ticket</dt><dd class="num">@f.ReferenceNumber.Or()</dd></div>
+                    </div>
+                </div>
+
+                <div class="wb__section">
+                    <h3>Origen del movimiento</h3>
+                    <div class="wb__facts">
+                        <div class="wb__fact">
+                            <dt>Viaje</dt>
+                            <dd>
+                                @if (f.TripId is not null)
+                                {
+                                    <a asp-controller="Trips" asp-action="Details" asp-route-id="@f.TripId" class="folio">@f.TripFolio</a>
+                                }
+                                else
+                                {
+                                    <span class="muted">Carga de patio, sin viaje</span>
+                                }
+                            </dd>
+                        </div>
+                        <div class="wb__fact"><dt>Conductor</dt><dd>@f.DriverName.Or()</dd></div>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="wb__detail-head">
+                <div class="wb__detail-title">
+                    <h2>@(Model.Form.IsNew ? "Nueva carga de combustible" : "Corregir carga")</h2>
+                    <p>El importe se calcula multiplicando cantidad por precio</p>
+                </div>
+                <partial name="_WorkbenchToolbar" model="@(new WorkbenchToolbar {
+                    Mode = Model.Mode, SelectedId = Model.Form.Id, CanWrite = Model.CanWrite,
+                    Filters = Model.List.Filters })" />
+            </div>
+
+            <div class="wb__body">
+                <partial name="_ValidationSummary" />
+                @{ ViewData["Search"] = Model.List.Search; }
+                <partial name="_Form" model="Model.Form" />
+            </div>
+        }
+    </section>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

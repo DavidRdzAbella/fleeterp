@@ -1,0 +1,351 @@
+@model DashboardViewModel
+@{
+    var s = ViewData["Settings"] as TenantSettingsModel ?? TenantSettingsModel.Fallback();
+    ViewData["Title"] = "Tablero de flotilla";
+    ViewData["Subtitle"] = $"{Model.Period.Label} · corte al {DateTime.Now:dd/MM/yyyy HH:mm}";
+
+    var d = Model.Dashboard;
+    var fleet = d.Fleet;
+    var activity = d.Activity;
+    var money = d.Financials;
+
+    string Series(IReadOnlyList<TimeSeriesPointModel> points) =>
+        System.Text.Json.JsonSerializer.Serialize(points.Select(p => p.Value));
+
+    string Days(IReadOnlyList<TimeSeriesPointModel> points) =>
+        System.Text.Json.JsonSerializer.Serialize(points.Select(p => p.Date.ToString("dd/MM")));
+}
+
+@section TopbarActions {
+    <partial name="_PeriodPicker" model="Model.Period" />
+    @if (ViewData["CanWrite"] as bool? == true)
+    {
+        <a class="btn btn--primary" asp-controller="Trips" asp-action="Create">Programar viaje</a>
+    }
+}
+
+@* --- Tira de despacho -----------------------------------------------------
+   Lo primero que ve el despachador: dónde está cada unidad en este momento.
+   -------------------------------------------------------------------------- *@
+<section class="panel">
+    <div class="panel__head">
+        <h2>Estado de la flotilla</h2>
+        <span class="panel__hint">
+            @fleet.Available disponibles · @fleet.OnTrip en viaje · @fleet.InMaintenance en taller
+            @if (fleet.OutOfService > 0) { <text> · @fleet.OutOfService fuera de servicio</text> }
+        </span>
+        <a class="btn btn--small" asp-controller="Fleet" asp-action="Index">Ver inventario</a>
+    </div>
+    <div class="panel__body">
+        @if (Model.Fleet.Count == 0)
+        {
+            <div class="empty">
+                <h3>Todavía no hay unidades registradas</h3>
+                <p>Dé de alta su primer tractocamión o caja para empezar a programar viajes.</p>
+                <a class="btn btn--primary" asp-controller="Fleet" asp-action="Index" asp-route-mode="new">Dar de alta una unidad</a>
+            </div>
+        }
+        else
+        {
+            <div class="strip">
+                @foreach (var vehicle in Model.Fleet.Where(v => v.IsActive))
+                {
+                    @* Abre la ficha de la unidad en el inventario, en lectura. *@
+                    <a class="plate plate--@Display.VehicleStatusTone(vehicle.Status)"
+                       asp-controller="Fleet" asp-action="Index" asp-route-id="@vehicle.Id"
+                       title="@vehicle.VehicleTypeName · @Display.VehicleStatusLabel(vehicle.Status) · @Display.Distance(vehicle.CurrentOdometer, s)">
+                        <span class="plate__eco">@vehicle.EconomicNumber</span>
+                        <span class="plate__meta">@Display.VehicleStatusLabel(vehicle.Status)</span>
+                    </a>
+                }
+            </div>
+        }
+    </div>
+</section>
+
+@* --- Entradas y salidas del día ------------------------------------------ *@
+<div class="grid grid--kpi">
+    <div class="metric">
+        <div class="metric__label">Salidas de hoy</div>
+        <div class="metric__value">@activity.DeparturesToday</div>
+        <div class="metric__note">@activity.Planned viaje(s) por salir</div>
+    </div>
+    <div class="metric">
+        <div class="metric__label">Llegadas de hoy</div>
+        <div class="metric__value">@activity.ArrivalsToday</div>
+        <div class="metric__note">@activity.InProgress unidad(es) en ruta</div>
+    </div>
+    <div class="metric @(activity.OnTimeRate >= 85 ? "metric--good" : activity.OnTimeRate >= 65 ? "metric--warn" : "metric--bad")">
+        <div class="metric__label">Puntualidad</div>
+        <div class="metric__value">@Display.Percent(activity.OnTimeRate)</div>
+        <div class="metric__note">@activity.LateArrivals llegada(s) tarde en el periodo</div>
+    </div>
+    <div class="metric">
+        <div class="metric__label">Distancia del periodo</div>
+        <div class="metric__value">@activity.TotalDistance.ToString("N0")</div>
+        <div class="metric__note">@Display.DistanceUnitLabel(s) · @Display.Distance(activity.AverageDistancePerTrip, s) por viaje</div>
+    </div>
+    <div class="metric">
+        <div class="metric__label">Uso de unidades</div>
+        <div class="metric__value">@Display.Percent(fleet.UtilizationRate)</div>
+        <div class="metric__note">@fleet.MotorizedUnits motrices · @fleet.TowedUnits de arrastre</div>
+    </div>
+</div>
+
+@* --- Resultado económico ------------------------------------------------- *@
+<div class="grid grid--kpi mt-16">
+    <div class="metric">
+        <div class="metric__label">Vendido</div>
+        <div class="metric__value">@Display.MoneyShort(money.Revenue, s)</div>
+        <div class="metric__note">@Display.Money(money.RevenuePerDistanceUnit, s) por @Display.DistanceUnitLabel(s)</div>
+    </div>
+    <div class="metric">
+        <div class="metric__label">Combustible</div>
+        <div class="metric__value">@Display.MoneyShort(money.FuelCost, s)</div>
+        <div class="metric__note">@Display.Volume(money.FuelQuantity, s) · rendimiento @Display.Efficiency(money.AverageFuelEfficiency, s)</div>
+    </div>
+    <div class="metric">
+        <div class="metric__label">Pago a operadores</div>
+        <div class="metric__value">@Display.MoneyShort(money.DriverPay, s)</div>
+        <div class="metric__note">Gastos de ruta @Display.MoneyShort(money.OtherExpenses, s)</div>
+    </div>
+    <div class="metric">
+        <div class="metric__label">Costo total</div>
+        <div class="metric__value">@Display.MoneyShort(money.TotalCost, s)</div>
+        <div class="metric__note">@Display.Money(money.CostPerDistanceUnit, s) por @Display.DistanceUnitLabel(s)</div>
+    </div>
+    <div class="metric @(money.Profit >= 0 ? "metric--good" : "metric--bad")">
+        <div class="metric__label">Ganancia de la empresa</div>
+        <div class="metric__value">@Display.MoneyShort(money.Profit, s)</div>
+        <div class="metric__note">Margen @Display.Percent(money.ProfitMargin)</div>
+    </div>
+</div>
+
+@* --- Gráficas ------------------------------------------------------------ *@
+<div class="grid grid--halves mt-16">
+    <section class="panel mb-0">
+        <div class="panel__head">
+            <h2>Distancia recorrida por día</h2>
+            <span class="panel__hint">@Display.DistanceUnitLabel(s)</span>
+        </div>
+        <div class="panel__body">
+            <div class="chart">
+                <canvas data-chart="area" data-label="Distancia"
+                        data-labels="@Days(d.DistanceByDay)" data-values="@Series(d.DistanceByDay)"></canvas>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel mb-0">
+        <div class="panel__head">
+            <h2>Ganancia por día</h2>
+            <span class="panel__hint">Flete cobrado menos costo del día</span>
+        </div>
+        <div class="panel__body">
+            <div class="chart">
+                <canvas data-chart="bars" data-label="Ganancia" data-money="true"
+                        data-labels="@Days(d.ProfitByDay)" data-values="@Series(d.ProfitByDay)"></canvas>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div class="grid grid--halves mt-16">
+    <section class="panel mb-0">
+        <div class="panel__head">
+            <h2>En qué se va el dinero</h2>
+            <a class="btn btn--small" asp-controller="Finance" asp-action="Index">Ver detalle</a>
+        </div>
+        <div class="panel__body">
+            @if (d.CostBreakdown.Count == 0)
+            {
+                <p class="muted mb-0">Sin costos registrados en el periodo.</p>
+            }
+            else
+            {
+                <div class="chart chart--short">
+                    <canvas data-chart="donut" data-money="true"
+                            data-labels="@System.Text.Json.JsonSerializer.Serialize(d.CostBreakdown.Select(c => c.Label))"
+                            data-values="@System.Text.Json.JsonSerializer.Serialize(d.CostBreakdown.Select(c => c.Value))"></canvas>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="panel mb-0">
+        <div class="panel__head">
+            <h2>Requiere atención</h2>
+        </div>
+        <div class="panel__body">
+            @if (d.Alerts.Count == 0)
+            {
+                <p class="muted mb-0">Nada pendiente: licencias y seguros vigentes, sin órdenes de taller abiertas.</p>
+            }
+            else
+            {
+                <ul class="alert-list">
+                    @foreach (var alert in d.Alerts)
+                    {
+                        <li>
+                            <span class="dot dot--@alert.Severity"></span>
+                            <span><strong>@alert.Title.</strong> @alert.Detail</span>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    </section>
+</div>
+
+@* --- Operación viva ------------------------------------------------------ *@
+<section class="panel mt-16">
+    <div class="panel__head">
+        <h2>Unidades en ruta</h2>
+        <span class="panel__hint">@Model.ActiveTrips.Count viaje(s) en curso</span>
+        <a class="btn btn--small" asp-controller="Trips" asp-action="Index" asp-route-status="@TripStatus.InProgress">Ver todos</a>
+    </div>
+    <div class="panel__body panel__body--flush">
+        @if (Model.ActiveTrips.Count == 0)
+        {
+            <div class="empty">
+                <h3>Ninguna unidad en ruta</h3>
+                <p>Cuando despache un viaje aparecerá aquí con su hora de salida.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                    <tr>
+                        <th>Folio</th>
+                        <th>Conductor</th>
+                        <th>Unidad</th>
+                        <th>Ruta</th>
+                        <th>Salió</th>
+                        <th class="num">Distancia</th>
+                        <th class="num">Flete</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var trip in Model.ActiveTrips)
+                    {
+                        <tr>
+                            <td class="folio">@trip.Folio</td>
+                            <td class="cell-strong">@trip.DriverName</td>
+                            <td class="num">@trip.VehicleLabel</td>
+                            <td>
+                                @trip.Origin
+                                <span class="cell-sub">a @trip.Destination</span>
+                            </td>
+                            <td class="num">@Display.DateTimeLabel(trip.ActualDepartureUtc, s)</td>
+                            <td class="num">@Display.Distance(trip.PlannedDistance, s)</td>
+                            <td class="num">@Display.Money(trip.FreightRevenue, s)</td>
+                            <td class="text-right">
+                                <a class="btn btn--small" asp-controller="Trips" asp-action="Details" asp-route-id="@trip.Id">Abrir</a>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</section>
+
+<div class="grid grid--halves">
+    <section class="panel mb-0">
+        <div class="panel__head">
+            <h2>Próximas salidas</h2>
+            <a class="btn btn--small" asp-controller="Trips" asp-action="Index" asp-route-status="@TripStatus.Planned">Ver planeados</a>
+        </div>
+        <div class="panel__body panel__body--flush">
+            @if (Model.UpcomingTrips.Count == 0)
+            {
+                <div class="empty">
+                    <h3>No hay viajes programados</h3>
+                    @if (ViewData["CanWrite"] as bool? == true)
+                    {
+                        <p>Programe el siguiente viaje para tener lista la bandeja de despacho.</p>
+                        <a class="btn btn--primary" asp-controller="Trips" asp-action="Create">Programar viaje</a>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead>
+                        <tr>
+                            <th>Folio</th>
+                            <th>Sale</th>
+                            <th>Conductor</th>
+                            <th>Destino</th>
+                            <th></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var trip in Model.UpcomingTrips)
+                        {
+                            <tr>
+                                <td class="folio">@trip.Folio</td>
+                                <td class="num">@Display.DateTimeLabel(trip.ScheduledDepartureUtc, s)</td>
+                                <td>@trip.DriverName</td>
+                                <td>@trip.Destination</td>
+                                <td class="text-right">
+                                    <a class="btn btn--small" asp-controller="Trips" asp-action="Details" asp-route-id="@trip.Id">Despachar</a>
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="panel mb-0">
+        <div class="panel__head">
+            <h2>Conductores del periodo</h2>
+            <a class="btn btn--small" asp-controller="Drivers" asp-action="Index">Ver ranking completo</a>
+        </div>
+        <div class="panel__body panel__body--flush">
+            @if (d.TopDrivers.Count == 0)
+            {
+                <div class="empty"><h3>Sin viajes en el periodo</h3></div>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table class="data">
+                        <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Conductor</th>
+                            <th class="num">Distancia</th>
+                            <th class="num">Vendió</th>
+                            <th class="num">Dejó</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var row in d.TopDrivers)
+                        {
+                            <tr>
+                                <td><span class="rank rank--@row.Rank">@row.Rank</span></td>
+                                <td>
+                                    <a asp-controller="Drivers" asp-action="Details" asp-route-id="@row.DriverId">@row.DriverName</a>
+                                    <span class="cell-sub">@row.Trips viaje(s)</span>
+                                </td>
+                                <td class="num">@Display.Distance(row.Distance, s)</td>
+                                <td class="num">@Display.MoneyShort(row.Revenue, s)</td>
+                                <td class="num @(row.Profit >= 0 ? "money-positive" : "money-negative")">@Display.MoneyShort(row.Profit, s)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </section>
+</div>

@@ -1,0 +1,25 @@
+@*
+    Resumen de errores del formulario. Solo muestra los que no están amarrados a
+    un campo concreto; los demás se pintan junto a su control, que es donde el
+    usuario los va a corregir.
+*@
+@{
+    var generalErrors = ViewData.ModelState
+        .Where(entry => string.IsNullOrEmpty(entry.Key))
+        .SelectMany(entry => entry.Value!.Errors)
+        .Select(error => error.ErrorMessage)
+        .ToList();
+}
+
+@if (generalErrors.Count > 0)
+{
+    <div class="notice notice--bad" role="alert">
+        <strong>No se pudo guardar.</strong>
+        <ul>
+            @foreach (var message in generalErrors)
+            {
+                <li>@message</li>
+            }
+        </ul>
+    </div>
+}

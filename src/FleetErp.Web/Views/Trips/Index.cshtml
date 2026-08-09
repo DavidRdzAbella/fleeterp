@@ -1,0 +1,119 @@
+@model TripsIndexViewModel
+@{
+    var s = ViewData["Settings"] as TenantSettingsModel ?? TenantSettingsModel.Fallback();
+    ViewData["Title"] = "Viajes";
+    ViewData["Subtitle"] = "Programe, despache y cierre cada recorrido de la flotilla";
+}
+
+@section TopbarActions {
+    @if (ViewData["CanWrite"] as bool? == true)
+    {
+        <a class="btn btn--primary" asp-action="Create">Programar viaje</a>
+    }
+}
+
+<section class="panel">
+    <div class="panel__head">
+        <form method="get" class="filters" style="flex:1">
+            <div class="field">
+                <label for="search">Buscar</label>
+                <input id="search" name="search" type="text" value="@Model.Search" placeholder="Folio, origen o destino" />
+            </div>
+            <div class="field">
+                <label for="status">Estado</label>
+                <select id="status" name="status" data-autosubmit>
+                    <option value="">Todos</option>
+                    @foreach (var status in Enum.GetValues<TripStatus>())
+                    {
+                        <option value="@status" selected="@(Model.Status == status)">@Display.TripStatusLabel(status)</option>
+                    }
+                </select>
+            </div>
+            <div class="field">
+                <label for="driverId">Conductor</label>
+                <select id="driverId" name="driverId" data-autosubmit>
+                    <option value="">Todos</option>
+                    @foreach (var driver in Model.Drivers)
+                    {
+                        <option value="@driver.Id" selected="@(Model.DriverId == driver.Id)">@driver.Label</option>
+                    }
+                </select>
+            </div>
+            <button type="submit" class="btn">Buscar</button>
+            @if (!string.IsNullOrWhiteSpace(Model.Search) || Model.Status is not null || Model.DriverId is not null)
+            {
+                <a class="btn" asp-action="Index">Limpiar</a>
+            }
+        </form>
+    </div>
+
+    <div class="panel__body panel__body--flush">
+        @if (Model.Trips.Items.Count == 0)
+        {
+            <div class="empty">
+                <h3>No hay viajes que coincidan</h3>
+                <p>Ajuste los filtros o programe un viaje nuevo.</p>
+                @if (ViewData["CanWrite"] as bool? == true)
+                {
+                    <a class="btn btn--primary" asp-action="Create">Programar viaje</a>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table class="data">
+                    <thead>
+                    <tr>
+                        <th>Folio</th>
+                        <th>Estado</th>
+                        <th>Ruta</th>
+                        <th>Conductor y unidad</th>
+                        <th>Salida</th>
+                        <th class="num">Distancia</th>
+                        <th class="num">Carga</th>
+                        <th class="num">Flete</th>
+                        <th class="num">Costo</th>
+                        <th class="num">Utilidad</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var trip in Model.Trips.Items)
+                    {
+                        <tr>
+                            <td class="folio">@trip.Folio</td>
+                            <td>
+                                <span class="tag tag--@Display.TripStatusTone(trip.Status)">@Display.TripStatusLabel(trip.Status)</span>
+                                @if (trip.IsLate)
+                                {
+                                    <span class="tag tag--late">Tarde</span>
+                                }
+                            </td>
+                            <td>
+                                @trip.Origin
+                                <span class="cell-sub">a @trip.Destination</span>
+                            </td>
+                            <td>
+                                <span class="cell-strong">@trip.DriverName</span>
+                                <span class="cell-sub">@trip.VehicleLabel</span>
+                            </td>
+                            <td class="num">@Display.DateTimeLabel(trip.ActualDepartureUtc ?? trip.ScheduledDepartureUtc, s)</td>
+                            <td class="num">@Display.Distance(trip.ActualDistance > 0 ? trip.ActualDistance : trip.PlannedDistance, s)</td>
+                            <td class="num">@Display.Weight(trip.CargoWeight, trip.CargoWeightUnit)</td>
+                            <td class="num">@Display.Money(trip.FreightRevenue, s)</td>
+                            <td class="num">@Display.Money(trip.TotalCost, s)</td>
+                            <td class="num @(trip.Profit >= 0 ? "money-positive" : "money-negative")">@Display.Money(trip.Profit, s)</td>
+                            <td class="text-right">
+                                <a class="btn btn--small" asp-action="Details" asp-route-id="@trip.Id">Abrir</a>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <partial name="_Pager" model="@((Model.Trips.Page, Model.Trips.TotalPages, Model.Trips.TotalCount, Model.Trips.HasPrevious, Model.Trips.HasNext))" />
+</section>
