@@ -34,17 +34,38 @@ los tableros pero ningún botón de captura, y no ve el menú de configuración.
 
 ### Levantar la base desde cero
 
+La forma más rápida es restaurar el respaldo completo, que trae estructura y
+datos de demostración en un solo archivo:
+
 ```bash
 psql -h localhost -p 5432 -U postgres -c "CREATE DATABASE fleeterp;"
 ```
 
 ```bash
-psql -h localhost -p 5432 -U postgres -d fleeterp -f deploy/schema.sql
+psql -h localhost -p 5432 -U postgres -d fleeterp -f deploy/fleeterp-demo.sql
 ```
 
-`deploy/schema.sql` es idempotente. Para volver a sembrar los datos de
-demostración, arranque la API una vez con `Database__SeedDemoData=true`; el
-sembrado no duplica nada si la empresa ya existe.
+Queda lista para entrar: una empresa, 3 usuarios, 9 unidades, 6 operadores,
+4 clientes y 92 viajes con sus cargas de combustible, gastos y órdenes de taller.
+
+**Restaure siempre sobre una base vacía.** El respaldo no lleva `DROP`, así que
+aplicarlo encima de datos existentes falla por llaves duplicadas en lugar de
+sobrescribir — que es el comportamiento seguro.
+
+| Archivo | Qué trae | Cuándo usarlo |
+|---|---|---|
+| [`deploy/fleeterp-demo.sql`](deploy/fleeterp-demo.sql) | Estructura **y** datos de demostración | Montar el demo en otra máquina o volver al punto de partida |
+| [`deploy/schema.sql`](deploy/schema.sql) | Solo estructura, idempotente | Instalar en un cliente real, que arranca con su propia información |
+
+Para volver a generar el respaldo después de cambiar los datos:
+
+```bash
+pg_dump -h localhost -p 5432 -U postgres -d fleeterp --no-owner --no-privileges --encoding=UTF8 --file=deploy/fleeterp-demo.sql
+```
+
+Si prefiere partir de la estructura vacía y que el sistema siembre los datos,
+aplique `deploy/schema.sql` y arranque la API una vez con
+`Database__SeedDemoData=true`; el sembrado no duplica nada si la empresa ya existe.
 
 ### Sin instalar nada (para enseñarlo en otra máquina)
 
