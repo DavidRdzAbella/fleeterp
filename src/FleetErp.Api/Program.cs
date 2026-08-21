@@ -129,9 +129,39 @@ app.MapHealthChecks("/health").AllowAnonymous();
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<FleetDbContext>();
-    dbContext.Database.Migrate(); // Esto creará todas las tablas en Supabase automáticamente al iniciar
-}
+    dbContext.Database.Migrate();
 
+    // --- BLOQUE TEMPORAL PARA CREAR/ACTUALIZAR EL USUARIO DEMO ---
+    var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+    var tenant = dbContext.Tenants.FirstOrDefault(t => t.Slug == "demo");
+    if (tenant != null)
+    {
+        var user = dbContext.Users.FirstOrDefault(u => u.Email == "admin@demo.com");
+        string hashedPassword = hasher.Hash("Demo123$"); // Utiliza el hasher oficial de tu app
+
+        if (user == null)
+        {
+            dbContext.Users.Add(new FleetErp.Domain.Entities.User
+            {
+                Id = Guid.NewGuid(),
+                Email = "admin@demo.com",
+                FullName = "Administrador Demo",
+                PasswordHash = hashedPassword,
+                Role = 0,
+                IsActive = true,
+                TenantId = tenant.Id,
+                CreatedAtUtc = DateTime.UtcNow
+            });
+        }
+        else
+        {
+            user.PasswordHash = hashedPassword;
+            dbContext.Users.Update(user);
+        }
+        dbContext.SaveChanges();
+    }
+    // -------------------------------------------------------------
+}
 app.Run();
 
 /// <summary>
