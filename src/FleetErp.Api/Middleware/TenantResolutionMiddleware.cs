@@ -1,7 +1,7 @@
-using FleetErp.Infrastructure.Identity;
-using FleetErp.Infrastructure.Services;
+//using FleetErp.Infrastructure.Identity;
+//using FleetErp.Infrastructure.Services;
 
-namespace FleetErp.Api.Middleware;
+//namespace FleetErp.Api.Middleware;
 
 /// <summary>
 /// Fija la empresa de la petición a partir del token ya validado. Se ejecuta
@@ -13,23 +13,46 @@ namespace FleetErp.Api.Middleware;
 /// que el cliente pueda escribir: eso permitiría leer datos de otra empresa
 /// simplemente cambiando un valor en la petición.
 /// </remarks>
-public async Task InvokeAsync(HttpContext context, CurrentTenant currentTenant)
+using Microsoft.AspNetCore.Http;
+using System;
+using System.Threading.Tasks;
+
+namespace FleetErp.Api.Middleware
 {
-    // Si la ruta es de autenticación o pública, salta el middleware y continúa
-    var path = context.Request.Path.Value;
-    if (path != null && path.Contains("/api/auth", StringComparison.OrdinalIgnoreCase))
+    public sealed class TenantResolutionMiddleware
     {
-        await next(context);
-        return;
+        private readonly RequestDelegate _next;
+
+        public TenantResolutionMiddleware(RequestDelegate next)
+        {
+            _next = next;
+        }
+
+        public async Task InvokeAsync(HttpContext context, CurrentTenant currentTenant)
+        {
+            // Salta el middleware si es una ruta de autenticación o pública
+            var path = context.Request.Path.Value;
+            if (path != null && path.Contains("/api/auth", StringComparison.OrdinalIgnoreCase))
+            {
+                await _next(context);
+                return;
+            }
+
+            var tenantId = context.User.FindFirst(JwtTokenGenerator.TenantIdClaim)?.Value;
+            var slug = context.User.FindFirst(JwtTokenGenerator.TenantSlugClaim)?.Value;
+
+            if (Guid.TryParse(tenantId, out var parsed))
+            {
+                currentTenant.Set(parsed, slug ?? string.Empty);
+            }
+
+            await _next(context);
+        }
     }
 
-    var tenantId = context.User.FindFirst(JwtTokenGenerator.TenantIdClaim)?.Value;
-    var slug = context.User.FindFirst(JwtTokenGenerator.TenantSlugClaim)?.Value;
-
-    if (Guid.TryParse(tenantId, out var parsed))
+    public static class TenantResolutionMiddlewareExtensions
     {
-        currentTenant.Set(parsed, slug ?? string.Empty);
+        public static IApplicationBuilder UseTenantResolution(this IApplicationBuilder app) =>
+            app.UseMiddleware<TenantResolutionMiddleware>();
     }
-
-    await next(context);
 }
