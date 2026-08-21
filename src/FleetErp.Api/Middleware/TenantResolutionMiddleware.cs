@@ -14,9 +14,9 @@
 /// simplemente cambiando un valor en la petición.
 /// </remarks>
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Threading.Tasks;
-using FleetErp.Application.Common; // Ajusta este using si tu CurrentTenant está en otro namespace de tu proyecto
 
 namespace FleetErp.Api.Middleware
 {
@@ -29,7 +29,7 @@ namespace FleetErp.Api.Middleware
             _next = next;
         }
 
-        public async Task InvokeAsync(HttpContext context, CurrentTenant currentTenant)
+        public async Task InvokeAsync(HttpContext context)
         {
             // Salta el middleware si es una ruta de autenticación o pública
             var path = context.Request.Path.Value;
@@ -38,6 +38,8 @@ namespace FleetErp.Api.Middleware
                 await _next(context);
                 return;
             }
+
+            var currentTenant = context.RequestServices.GetRequiredService<CurrentTenant>();
 
             var tenantId = context.User.FindFirst(JwtTokenGenerator.TenantIdClaim)?.Value;
             var slug = context.User.FindFirst(JwtTokenGenerator.TenantSlugClaim)?.Value;
