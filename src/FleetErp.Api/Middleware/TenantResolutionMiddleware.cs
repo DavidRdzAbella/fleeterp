@@ -16,6 +16,7 @@
 using Microsoft.AspNetCore.Http;
 using System;
 using System.Threading.Tasks;
+using FleetErp.Application.Common; // Ajusta este using si tu CurrentTenant está en otro namespace de tu proyecto
 
 namespace FleetErp.Api.Middleware
 {
