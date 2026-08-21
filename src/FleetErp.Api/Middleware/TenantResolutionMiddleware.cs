@@ -30,15 +30,15 @@ namespace FleetErp.Api.Middleware
 
         public async Task InvokeAsync(HttpContext context)
         {
-            // Salta completamente el middleware si es una ruta de autenticación o pública
-            var path = context.Request.Path.Value;
-            if (path != null && path.Contains("/api/auth", StringComparison.OrdinalIgnoreCase))
+            var path = context.Request.Path.Value?.ToLower() ?? string.Empty;
+
+            // Ignora cualquier ruta pública de autenticación, login, swagger o raíz
+            if (path.Contains("auth") || path.Contains("login") || path.Contains("swagger") || path == "/")
             {
                 await _next(context);
                 return;
             }
 
-            // Si es una ruta protegida, extrae los claims del token directamente
             var tenantId = context.User.FindFirst("tenant_id")?.Value ?? context.User.FindFirst("TenantId")?.Value;
             var slug = context.User.FindFirst("tenant_slug")?.Value ?? context.User.FindFirst("Slug")?.Value;
 
