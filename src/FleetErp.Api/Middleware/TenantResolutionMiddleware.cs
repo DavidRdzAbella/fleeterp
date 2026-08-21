@@ -16,6 +16,7 @@
    // Ignora cualquier ruta pública de autenticación, login, swagger o raíz
     
 using Microsoft.AspNetCore.Http;
+using System;
 using System.Threading.Tasks;
 
 namespace FleetErp.Api.Middleware
@@ -31,16 +32,19 @@ namespace FleetErp.Api.Middleware
 
         public async Task InvokeAsync(HttpContext context)
         {
-            // Si el usuario no está autenticado (como en el login o swagger), pasa de largo sin hacer nada
-            if (context.User?.Identity?.IsAuthenticated != true)
+            try
             {
-                await _next(context);
-                return;
+                // Intenta leer los claims de forma segura solo si el contexto está autenticado
+                if (context.User?.Identity?.IsAuthenticated == true)
+                {
+                    var tenantId = context.User.FindFirst("tenant_id")?.Value ?? context.User.FindFirst("TenantId")?.Value;
+                    var slug = context.User.FindFirst("tenant_slug")?.Value ?? context.User.FindFirst("Slug")?.Value;
+                }
             }
-
-            // Si ya está autenticado, extrae los claims con seguridad
-            var tenantId = context.User.FindFirst("tenant_id")?.Value ?? context.User.FindFirst("TenantId")?.Value;
-            var slug = context.User.FindFirst("tenant_slug")?.Value ?? context.User.FindFirst("Slug")?.Value;
+            catch
+            {
+                // Si ocurre cualquier fallo al leer los datos, se ignora para no romper el flujo del login
+            }
 
             await _next(context);
         }
