@@ -13,8 +13,9 @@
 /// que el cliente pueda escribir: eso permitiría leer datos de otra empresa
 /// simplemente cambiando un valor en la petición.
 /// </remarks>
+   // Ignora cualquier ruta pública de autenticación, login, swagger o raíz
+    
 using Microsoft.AspNetCore.Http;
-using System;
 using System.Threading.Tasks;
 
 namespace FleetErp.Api.Middleware
@@ -30,15 +31,14 @@ namespace FleetErp.Api.Middleware
 
         public async Task InvokeAsync(HttpContext context)
         {
-            var path = context.Request.Path.Value?.ToLower() ?? string.Empty;
-
-            // Ignora cualquier ruta pública de autenticación, login, swagger o raíz
-            if (path.Contains("auth") || path.Contains("login") || path.Contains("swagger") || path == "/")
+            // Si el usuario no está autenticado (como en el login o swagger), pasa de largo sin hacer nada
+            if (context.User?.Identity?.IsAuthenticated != true)
             {
                 await _next(context);
                 return;
             }
 
+            // Si ya está autenticado, extrae los claims con seguridad
             var tenantId = context.User.FindFirst("tenant_id")?.Value ?? context.User.FindFirst("TenantId")?.Value;
             var slug = context.User.FindFirst("tenant_slug")?.Value ?? context.User.FindFirst("Slug")?.Value;
 
