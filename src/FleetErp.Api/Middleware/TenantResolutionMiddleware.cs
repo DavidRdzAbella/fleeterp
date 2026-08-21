@@ -17,6 +17,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Threading.Tasks;
+using FleetErp.Application.Common; // Ajusta este namespace si tu CurrentTenant/JwtTokenGenerator está en otra capa
 
 namespace FleetErp.Api.Middleware
 {
