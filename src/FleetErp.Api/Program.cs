@@ -131,36 +131,29 @@ using (var scope = app.Services.CreateScope())
     var dbContext = scope.ServiceProvider.GetRequiredService<FleetDbContext>();
     dbContext.Database.Migrate();
 
-    // --- BLOQUE TEMPORAL PARA CREAR/ACTUALIZAR EL USUARIO DEMO ---
     var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
     var tenant = dbContext.Tenants.FirstOrDefault(t => t.Slug == "demo");
     if (tenant != null)
     {
-        var user = dbContext.Users.FirstOrDefault(u => u.Email == "admin@demo.com");
-        string hashedPassword = hasher.Hash("Demo123$"); // Utiliza el hasher oficial de tu app
+        var existingUser = dbContext.Users.FirstOrDefault(u => u.Email == "admin@demo.com");
+        string hashedPassword = hasher.Hash("Demo123$");
 
-        if (user == null)
+        if (existingUser == null)
         {
-            dbContext.Users.Add(new FleetErp.Domain.Entities.User
-            {
-                Id = Guid.NewGuid(),
-                Email = "admin@demo.com",
-                FullName = "Administrador Demo",
-                PasswordHash = hashedPassword,
-                Role = 0,
-                IsActive = true,
-                TenantId = tenant.Id,
-                CreatedAtUtc = DateTime.UtcNow
-            });
+            // Usamos un comando SQL directo o una inserción limpia para evitar restricciones de propiedades de solo lectura
+            dbContext.Database.ExecuteSqlRaw(
+                "INSERT INTO users (\"Id\", \"Email\", \"FullName\", \"PasswordHash\", \"Role\", \"IsActive\", \"TenantId\", \"CreatedAtUtc\") VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}) ON CONFLICT (\"Email\") DO UPDATE SET \"PasswordHash\" = {3};",
+                Guid.NewGuid(),
+                "admin@demo.com",
+                "Administrador Demo",
+                hashedPassword,
+                0,
+                true,
+                tenant.Id,
+                DateTime.UtcNow
+            );
         }
-        else
-        {
-            user.PasswordHash = hashedPassword;
-            dbContext.Users.Update(user);
-        }
-        dbContext.SaveChanges();
     }
-    // -------------------------------------------------------------
 }
 app.Run();
 
