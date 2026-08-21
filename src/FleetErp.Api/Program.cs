@@ -104,7 +104,7 @@ builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
-await InitializeDatabaseAsync(app);
+//await InitializeDatabaseAsync(app);
 
 app.UseFleetExceptionHandling();
 
