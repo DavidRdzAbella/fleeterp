@@ -135,14 +135,18 @@ using (var scope = app.Services.CreateScope())
     var tenant = dbContext.Tenants.FirstOrDefault(t => t.Slug == "demo");
     if (tenant != null)
     {
-        var existingUser = dbContext.Users.FirstOrDefault(u => u.Email == "admin@demo.com");
+        // Verificamos si ya existe el usuario por su correo usando SQL plano de forma segura
+        var count = dbContext.Database.SqlQueryRaw<int>(
+            "SELECT COUNT(1) AS \"Value\" FROM users WHERE \"Email\" = {0}", "admin@demo.com"
+        ).AsEnumerable().FirstOrDefault();
+
         string hashedPassword = hasher.Hash("Demo123$");
 
-        if (existingUser == null)
+        if (count == 0)
         {
-            // Usamos un comando SQL directo o una inserción limpia para evitar restricciones de propiedades de solo lectura
+            // Si no existe, lo insertamos
             dbContext.Database.ExecuteSqlRaw(
-                "INSERT INTO users (\"Id\", \"Email\", \"FullName\", \"PasswordHash\", \"Role\", \"IsActive\", \"TenantId\", \"CreatedAtUtc\") VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}) ON CONFLICT (\"Email\") DO UPDATE SET \"PasswordHash\" = {3};",
+                "INSERT INTO users (\"Id\", \"Email\", \"FullName\", \"PasswordHash\", \"Role\", \"IsActive\", \"TenantId\", \"CreatedAtUtc\") VALUES ({0}, {1}, {2}, {3}, {4}, {5}, {6}, {7});",
                 Guid.NewGuid(),
                 "admin@demo.com",
                 "Administrador Demo",
@@ -151,6 +155,15 @@ using (var scope = app.Services.CreateScope())
                 true,
                 tenant.Id,
                 DateTime.UtcNow
+            );
+        }
+        else
+        {
+            // Si ya existe, actualizamos su contraseña al hash correcto generado por tu app
+            dbContext.Database.ExecuteSqlRaw(
+                "UPDATE users SET \"PasswordHash\" = {0} WHERE \"Email\" = {1};",
+                hashedPassword,
+                "admin@demo.com"
             );
         }
     }
