@@ -17,7 +17,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Threading.Tasks;
-using FleetErp.Application.Common; // Ajusta este namespace si tu CurrentTenant/JwtTokenGenerator está en otra capa
+using FleetErp.Application.Common; // Ajusta esto si tu CurrentTenant está en otra capa
 
 namespace FleetErp.Api.Middleware
 {
@@ -42,8 +42,9 @@ namespace FleetErp.Api.Middleware
 
             var currentTenant = context.RequestServices.GetRequiredService<CurrentTenant>();
 
-            var tenantId = context.User.FindFirst(JwtTokenGenerator.TenantIdClaim)?.Value;
-            var slug = context.User.FindFirst(JwtTokenGenerator.TenantSlugClaim)?.Value;
+            // Usamos las claves de claim directamente para evitar errores de namespace
+            var tenantId = context.User.FindFirst("tenant_id")?.Value ?? context.User.FindFirst("TenantId")?.Value;
+            var slug = context.User.FindFirst("tenant_slug")?.Value ?? context.User.FindFirst("Slug")?.Value;
 
             if (Guid.TryParse(tenantId, out var parsed))
             {
