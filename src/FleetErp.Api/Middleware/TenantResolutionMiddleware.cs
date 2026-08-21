@@ -14,10 +14,8 @@
 /// simplemente cambiando un valor en la petición.
 /// </remarks>
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Threading.Tasks;
-using FleetErp.Application.Common; // Ajusta esto si tu CurrentTenant está en otra capa
 
 namespace FleetErp.Api.Middleware
 {
@@ -32,7 +30,7 @@ namespace FleetErp.Api.Middleware
 
         public async Task InvokeAsync(HttpContext context)
         {
-            // Salta el middleware si es una ruta de autenticación o pública
+            // Salta completamente el middleware si es una ruta de autenticación o pública
             var path = context.Request.Path.Value;
             if (path != null && path.Contains("/api/auth", StringComparison.OrdinalIgnoreCase))
             {
@@ -40,16 +38,9 @@ namespace FleetErp.Api.Middleware
                 return;
             }
 
-            var currentTenant = context.RequestServices.GetRequiredService<CurrentTenant>();
-
-            // Usamos las claves de claim directamente para evitar errores de namespace
+            // Si es una ruta protegida, extrae los claims del token directamente
             var tenantId = context.User.FindFirst("tenant_id")?.Value ?? context.User.FindFirst("TenantId")?.Value;
             var slug = context.User.FindFirst("tenant_slug")?.Value ?? context.User.FindFirst("Slug")?.Value;
-
-            if (Guid.TryParse(tenantId, out var parsed))
-            {
-                currentTenant.Set(parsed, slug ?? string.Empty);
-            }
 
             await _next(context);
         }
