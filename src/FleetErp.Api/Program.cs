@@ -126,6 +126,12 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHealthChecks("/health").AllowAnonymous();
 
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<FleetDbContext>();
+    dbContext.Database.Migrate(); // Esto creará todas las tablas en Supabase automáticamente al iniciar
+}
+
 app.Run();
 
 /// <summary>
